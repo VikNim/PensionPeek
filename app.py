@@ -44,42 +44,46 @@ APP_CSS = """
           var(--cream);
         color: var(--ink);
     }
-    .block-container { max-width: 1180px; padding-top: 2.2rem; padding-bottom: 4rem; }
+    .block-container { max-width: 1320px; padding-top: .85rem; padding-bottom: 2.5rem; }
     h1, h2, h3 { color: var(--ink); letter-spacing: -0.025em; }
-    h1 { font-size: clamp(2.4rem, 6vw, 4.7rem) !important; line-height: .96 !important; }
-    .pp-kicker {
-        color: var(--teal); font-size: .77rem; font-weight: 800; letter-spacing: .14em;
-        text-transform: uppercase; margin-bottom: .8rem;
+    h1 {
+        font-size: clamp(2.25rem, 4vw, 3.2rem) !important; line-height: 1 !important;
+        margin: .1rem 0 .25rem !important;
     }
-    .pp-hero { padding: 1.4rem 0 1.8rem; }
-    .pp-hero p { color: #526373; font-size: 1.12rem; max-width: 690px; line-height: 1.65; }
+    .pp-kicker {
+        color: var(--teal); font-size: .7rem; font-weight: 800; letter-spacing: .14em;
+        text-transform: uppercase; margin-bottom: .2rem;
+    }
+    .pp-hero {
+        display: grid; grid-template-columns: minmax(280px, .8fr) minmax(420px, 1.35fr);
+        align-items: end; gap: 2rem; padding: .15rem 0 .55rem;
+    }
+    .pp-hero p { color: #526373; font-size: 1rem; line-height: 1.45; margin: 0 0 .3rem; }
     .pp-badge {
-        display: inline-block; padding: .35rem .7rem; border-radius: 999px;
-        background: #dff0ea; color: #12635f; font-size: .78rem; font-weight: 750;
+        display: inline-block; padding: .24rem .55rem; border-radius: 999px;
+        background: #dff0ea; color: #12635f; font-size: .7rem; font-weight: 750;
+        vertical-align: middle; margin-left: .45rem; letter-spacing: 0;
     }
     .pp-disclaimer {
-        border: 1px solid #d8b76d; border-left: 5px solid #d6a94c; border-radius: 12px;
-        padding: .9rem 1rem; background: rgba(255,253,248,.86); color: #624f29;
-        font-size: .91rem; line-height: 1.5; margin: .5rem 0 1.4rem;
+        border: 1px solid #d8b76d; border-left: 4px solid #d6a94c; border-radius: 9px;
+        padding: .5rem .75rem; background: rgba(255,253,248,.86); color: #624f29;
+        font-size: .82rem; line-height: 1.35; margin: .15rem 0 .7rem;
     }
     .pp-plan-head {
-        padding: 1.15rem 1.25rem; background: var(--ink); color: white; border-radius: 16px;
-        margin: 1.2rem 0 1rem; box-shadow: 0 12px 28px rgba(23,50,77,.12);
+        padding: .7rem 1rem; background: var(--ink); color: white; border-radius: 12px;
+        margin: .65rem 0 .65rem; box-shadow: 0 8px 20px rgba(23,50,77,.10);
     }
-    .pp-plan-head h2 { color: white; margin: 0 0 .35rem; }
-    .pp-plan-head p { margin: 0; color: #d7e3ec; }
-    .pp-mini-card {
-        background: rgba(255,253,248,.75); border: 1px solid var(--rule); border-radius: 14px;
-        padding: 1rem; min-height: 118px;
-    }
+    .pp-plan-head h2 { color: white; font-size: 1.45rem; margin: 0 0 .18rem; }
+    .pp-plan-head p { margin: 0; color: #d7e3ec; font-size: .88rem; }
     div[data-testid="stMetric"] {
         background: rgba(255,253,248,.82); border: 1px solid var(--rule);
-        padding: .9rem 1rem; border-radius: 13px;
+        padding: .6rem .8rem; border-radius: 10px;
     }
     div[data-testid="stForm"], div[data-testid="stDataFrame"], .stTabs [data-baseweb="tab-panel"] {
-        background: rgba(255,253,248,.72); border: 1px solid var(--rule); border-radius: 15px;
-        padding: 1rem;
+        background: rgba(255,253,248,.72); border: 1px solid var(--rule); border-radius: 11px;
+        padding: .65rem;
     }
+    div[data-testid="stVerticalBlock"] { gap: .65rem; }
     .stButton > button[kind="primary"], .stFormSubmitButton > button {
         background: var(--coral); color: white; border: 0; font-weight: 750;
     }
@@ -88,9 +92,21 @@ APP_CSS = """
     }
     a { color: var(--teal) !important; }
     footer { visibility: hidden; }
+    @media (max-width: 760px) {
+        .pp-hero { grid-template-columns: 1fr; gap: .25rem; }
+        .block-container { padding-top: .55rem; }
+    }
 </style>
 """
 st.markdown(APP_CSS, unsafe_allow_html=True)
+
+PLOTLY_CONFIG = {
+    "displayModeBar": True,
+    "displaylogo": False,
+    "scrollZoom": True,
+    "doubleClick": "reset+autosize",
+    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+}
 
 
 def _init_state() -> None:
@@ -188,59 +204,44 @@ def _metric_value(parsed: ParsedFiling | None, filing: Filing) -> tuple[float | 
 
 
 def _render_header() -> None:
-    left, right = st.columns([2.35, 1], gap="large")
-    with left:
-        st.markdown(
-            """
-            <div class="pp-hero">
-              <div class="pp-kicker">Public retirement-plan filings, made legible</div>
-              <span class="pp-badge">Live Department of Labor data</span>
-              <h1>PensionPeek</h1>
-              <p>Find a U.S. Form 5500, inspect the plan-level numbers, and ask grounded questions
-              without needing to speak fluent ERISA.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with right:
-        st.markdown(
-            """
-            <div class="pp-mini-card">
-              <div class="pp-kicker">What you can see</div>
-              <strong>Plan-level filings</strong><br>
-              Assets, participant counts, income, expenses, and available filing attachments.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
     st.markdown(
         """
-        <div class="pp-disclaimer"><strong>Important:</strong> PensionPeek shows aggregate,
-        publicly filed plan data—not your personal account balance or holdings. It is not legal,
-        tax, fiduciary, or investment advice. Investment-by-investment detail exists only when a
-        filing includes a public Schedule of Assets attachment.</div>
+        <div class="pp-hero">
+          <div>
+            <div class="pp-kicker">Public retirement-plan filings, made legible</div>
+            <h1>PensionPeek <span class="pp-badge">Live DOL data</span></h1>
+          </div>
+          <p>Find a U.S. Form 5500, compare plan-level assets and participants, inspect Schedule H,
+          and ask grounded questions with page citations.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="pp-disclaimer"><strong>Plan-level public data:</strong> not a personal account
+        balance or holdings, and not legal, tax, fiduciary, or investment advice. Individual
+        investments appear only when a public Schedule of Assets is attached.</div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def _render_search() -> None:
-    st.subheader("Search public filings")
+def _render_search_contents() -> None:
+    st.markdown("### Search public filings")
     with st.form("filing_search", border=True):
-        search_by = st.radio(
-            "Search by",
-            ["Company", "EIN"],
-            horizontal=True,
-            help=TERMS["EIN"],
+        by_column, query_column, action_column = st.columns(
+            [1.1, 4, 1.35], vertical_alignment="bottom"
         )
-        query = st.text_input(
-            "Company, plan sponsor, or EIN",
-            placeholder="Try: Google or 77-0493581",
-            label_visibility="collapsed",
-        )
-        submitted = st.form_submit_button(
-            "Search DOL filings", type="primary", use_container_width=True
-        )
+        with by_column:
+            search_by = st.selectbox("Search by", ["Company", "EIN"], help=TERMS["EIN"])
+        with query_column:
+            query = st.text_input(
+                "Company, plan sponsor, or EIN",
+                placeholder="Try: Google or 77-0493581",
+            )
+        with action_column:
+            submitted = st.form_submit_button("Search DOL", type="primary", width="stretch")
     st.caption(
         "Searches the live EFAST2 disclosure index. Company search checks both plan name "
         "and sponsor name."
@@ -262,7 +263,7 @@ def _render_search() -> None:
     if not results:
         return
 
-    st.markdown(f"#### {len(results):,} matching filings")
+    st.markdown(f"**{len(results):,} matching filings**")
     table_rows = [
         {
             "Plan year": item.plan_year,
@@ -277,9 +278,9 @@ def _render_search() -> None:
     ]
     st.dataframe(
         table_rows,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
-        height=min(420, 42 + 35 * len(results)),
+        height=min(310, 42 + 35 * len(results)),
         column_config={
             "Plan year": st.column_config.NumberColumn(format="%d"),
             "Participants BOY": st.column_config.NumberColumn(
@@ -288,18 +289,30 @@ def _render_search() -> None:
             "Assets EOY": st.column_config.NumberColumn(format="$ %.0f", help=TERMS["Assets EOY"]),
         },
     )
-    selected_index = st.selectbox(
-        "Choose a filing to inspect",
-        range(len(results)),
-        format_func=lambda index: (
-            f"{results[index].plan_year or 'Year n/a'} · {results[index].plan_name} · "
-            f"{results[index].formatted_ein}/{results[index].plan_number}"
-        ),
-    )
-    if st.button("Open filing", type="primary", use_container_width=True):
+    selection_column, action_column = st.columns([4.5, 1.2], vertical_alignment="bottom")
+    with selection_column:
+        selected_index = st.selectbox(
+            "Choose a filing to inspect",
+            range(len(results)),
+            format_func=lambda index: (
+                f"{results[index].plan_year or 'Year n/a'} · {results[index].plan_name} · "
+                f"{results[index].formatted_ein}/{results[index].plan_number}"
+            ),
+        )
+    with action_column:
+        open_filing = st.button("Open filing", type="primary", width="stretch")
+    if open_filing:
         with st.spinner("Retrieving and reading the public filing…"):
             _activate_filing(results[selected_index])
         st.rerun()
+
+
+def _render_search() -> None:
+    if st.session_state.active_filing:
+        with st.expander("Search or change filing", expanded=False):
+            _render_search_contents()
+    else:
+        _render_search_contents()
 
 
 def _render_plan_identity(filing: Filing) -> None:
@@ -323,9 +336,10 @@ def _render_plan_identity(filing: Filing) -> None:
 
 def _render_fallback_upload(filing: Filing) -> None:
     error = st.session_state.retrieval_error
-    if error:
-        st.warning(error)
-    with st.expander("Use a filing PDF from your computer", expanded=bool(error)):
+    if not error:
+        return
+    st.warning(error)
+    with st.expander("Use a filing PDF from your computer", expanded=True):
         st.write(
             "If DOL does not serve this image, upload a PDF you already obtained from the "
             "official search. "
@@ -388,21 +402,29 @@ def _render_overview(filing: Filing, parsed: ParsedFiling | None) -> None:
             sentences.append(
                 f"listed {_count(participants)} participants at the beginning of the year"
             )
-        st.markdown("#### Quick read")
-        st.write(
-            f"For plan year {filing.plan_year or 'shown'}, **{filing.plan_name}** "
+        st.markdown(
+            f"**Quick read · {filing.plan_year or 'Plan year'}:** {filing.plan_name} "
             + " and ".join(sentences)
             + ". These are aggregate plan figures, not participant balances."
         )
 
     st.markdown("#### History for this EIN and plan number")
+    st.caption(
+        "Drag or scroll to zoom. Use Reset axes in a chart's own toolbar—or double-click that "
+        "chart—to restore its full view without changing the others."
+    )
     history: list[Filing] = st.session_state.history or [filing]
     left, right = st.columns(2, gap="large")
     with left:
         st.markdown("**Total reported plan assets**")
         fig = assets_history_chart(history)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                config=PLOTLY_CONFIG,
+                key=f"assets-history-{filing.key}",
+            )
         else:
             st.info("No year-over-year asset totals were returned by the public search index.")
         st.caption("EOY means end of the plan year. Values come from plan-level public filings.")
@@ -414,7 +436,12 @@ def _render_overview(filing: Filing, parsed: ParsedFiling | None) -> None:
             parsed.metrics if parsed else None,
         )
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                config=PLOTLY_CONFIG,
+                key=f"participants-history-{filing.key}",
+            )
         else:
             st.info("No participant history was returned by the public search index.")
         st.caption(
@@ -423,7 +450,7 @@ def _render_overview(filing: Filing, parsed: ParsedFiling | None) -> None:
         )
 
 
-def _render_financials(parsed: ParsedFiling | None) -> None:
+def _render_financials(filing: Filing, parsed: ParsedFiling | None) -> None:
     if not parsed:
         st.info("Load a readable filing PDF to inspect Schedule H details.")
         return
@@ -431,13 +458,22 @@ def _render_financials(parsed: ParsedFiling | None) -> None:
         st.warning(warning)
     st.markdown("#### Schedule H financial detail")
     st.caption(TERMS["Schedule H"])
+    st.caption(
+        "Each chart has independent zoom. Double-click it or use its Reset axes toolbar button "
+        "to return to the complete view."
+    )
     metrics = parsed.metrics
     first, second = st.columns(2, gap="large")
     with first:
         st.markdown("**Income, expenses, and net change**")
         fig = income_expense_chart(metrics)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                config=PLOTLY_CONFIG,
+                key=f"income-expense-{filing.key}",
+            )
         else:
             st.info(
                 "Income and expense totals were not confidently detected in the extracted text."
@@ -446,7 +482,12 @@ def _render_financials(parsed: ParsedFiling | None) -> None:
         st.markdown("**Plan-level reported asset categories**")
         fig = asset_categories_chart(metrics)
         if fig:
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                config=PLOTLY_CONFIG,
+                key=f"asset-categories-{filing.key}",
+            )
         else:
             st.info("Asset-category amounts were not confidently detected in this filing.")
         st.caption(
@@ -472,7 +513,7 @@ def _render_financials(parsed: ParsedFiling | None) -> None:
             "End of year": _money(metrics.net_assets_eoy),
         },
     ]
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    st.dataframe(rows, width="stretch", hide_index=True)
     st.caption(
         "PDF extraction is heuristic because DOL facsimile layouts vary. Verify values on the "
         "source pages."
@@ -491,8 +532,38 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
         return
 
     with st.expander("AI and embedding setup", expanded=st.session_state.rag_engine is None):
-        provider = st.selectbox("Answering model provider", ["OpenAI", "Anthropic"])
-        if provider == "OpenAI":
+        provider = st.selectbox("Answering model provider", ["Databricks", "OpenAI", "Anthropic"])
+        databricks_base_url = ""
+        embedding_model = "text-embedding-3-small"
+        if provider == "Databricks":
+            databricks_base_url = st.text_input(
+                "Databricks foundation-model base URL",
+                value=(
+                    _secret("DATABRICKS_FM_BASE_URL")
+                    or "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+                ),
+                help="HTTPS workspace URL ending in /serving-endpoints.",
+            )
+            model_column, embedding_column = st.columns(2)
+            with model_column:
+                model_name = st.text_input(
+                    "Databricks chat model",
+                    value=_secret("LLM_MODEL") or "databricks-claude-haiku-4-5",
+                )
+            with embedding_column:
+                embedding_model = st.text_input(
+                    "Databricks embedding model",
+                    value=(_secret("EMBEDDING_MODEL") or "databricks-qwen3-embedding-0-6b"),
+                )
+            env_key = _secret("DATABRICKS_FM_TOKEN")
+            embedding_backend = "Databricks"
+            credential_name = "Databricks token"
+            privacy_note = (
+                "Filing chunks and retrieved excerpts are sent to your Databricks workspace. "
+                "Qwen document embeddings use no instruction; question embeddings use a "
+                "retrieval-specific instruction."
+            )
+        elif provider == "OpenAI":
             model_name = st.text_input(
                 "OpenAI model",
                 value=os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
@@ -500,6 +571,11 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
             )
             env_key = _secret("OPENAI_API_KEY")
             embedding_backend = st.radio("Embeddings", ["OpenAI", "Local"], horizontal=True)
+            credential_name = "OpenAI API key"
+            privacy_note = (
+                "OpenAI embeddings send filing chunks to OpenAI. Local embeddings stay on this "
+                "machine. Retrieved excerpts are sent to OpenAI for answering."
+            )
         else:
             model_name = st.text_input(
                 "Anthropic model",
@@ -508,27 +584,35 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
             )
             env_key = _secret("ANTHROPIC_API_KEY")
             embedding_backend = "Local"
+            credential_name = "Anthropic API key"
+            privacy_note = (
+                "Embeddings stay on this machine. Retrieved filing excerpts are sent to "
+                "Anthropic for answering."
+            )
             st.caption(
                 "Anthropic answering uses local sentence-transformer embeddings in this app."
             )
         if env_key:
-            st.success(f"Using {provider} API key from the environment.")
+            st.caption(f"✓ {credential_name} loaded from environment or Streamlit secrets.")
             api_key = env_key
         else:
             api_key = st.text_input(
-                f"{provider} API key",
+                credential_name,
                 type="password",
                 help=(
                     "Kept only in this running Streamlit session; PensionPeek does not persist it."
                 ),
             )
-        st.caption(
-            "OpenAI embeddings send extracted chunks to the OpenAI API. Local embeddings stay "
-            "on this machine but download a sentence-transformer model on first use. Retrieved "
-            "excerpts are sent to the selected answering provider."
-        )
-        if st.button("Build or refresh filing index", type="primary", use_container_width=True):
-            fingerprint = (filing.key, provider, model_name, embedding_backend)
+        st.caption(privacy_note)
+        if st.button("Build or refresh filing index", type="primary", width="stretch"):
+            fingerprint = (
+                filing.key,
+                provider,
+                model_name,
+                embedding_backend,
+                embedding_model,
+                databricks_base_url,
+            )
             try:
                 with st.spinner("Chunking, embedding, and indexing this filing…"):
                     st.session_state.rag_engine = RagEngine(
@@ -538,6 +622,8 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
                         api_key=api_key,
                         model_name=model_name,
                         embedding_backend=embedding_backend,
+                        embedding_model=embedding_model,
+                        databricks_base_url=databricks_base_url,
                     )
                     st.session_state.rag_fingerprint = fingerprint
                     st.session_state.chat_messages = []
@@ -552,11 +638,11 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
 
     suggested = None
     prompts = st.columns(3)
-    if prompts[0].button("Summarize this filing", use_container_width=True):
+    if prompts[0].button("Summarize this filing", width="stretch"):
         suggested = "Summarize the most important facts in this filing in plain language."
-    if prompts[1].button("Explain Schedule H", use_container_width=True):
+    if prompts[1].button("Explain Schedule H", width="stretch"):
         suggested = "What does Schedule H report here? Explain it in plain language."
-    if prompts[2].button("Flag notable changes", use_container_width=True):
+    if prompts[2].button("Flag notable changes", width="stretch"):
         suggested = "What financial changes or notable items are supported by this filing?"
 
     messages: list[dict[str, Any]] = st.session_state.chat_messages
@@ -608,7 +694,7 @@ def _render_source(
     )
     try:
         public_url = resolve_filing_url(filing.pdf_path)
-        st.link_button("Open the DOL-hosted filing", public_url, use_container_width=True)
+        st.link_button("Open the DOL-hosted filing", public_url, width="stretch")
     except RetrievalError:
         pass
     if retrieved:
@@ -617,7 +703,7 @@ def _render_source(
             data=retrieved.pdf_bytes,
             file_name=retrieved.filename,
             mime="application/pdf",
-            use_container_width=True,
+            width="stretch",
         )
         provenance = (
             "ZIP archive extracted in memory" if retrieved.was_archive else "direct public PDF"
@@ -680,7 +766,7 @@ def main() -> None:
     with overview:
         _render_overview(filing, parsed)
     with financials:
-        _render_financials(parsed)
+        _render_financials(filing, parsed)
     with ask:
         _render_chat(filing, parsed)
     with source:

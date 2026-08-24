@@ -5,7 +5,8 @@ actual filing PDF, charting reported plan-level figures, and asking grounded fol
 through a session-scoped RAG pipeline.
 
 It is intentionally a single-filing research tool. There is no user account system, relational
-metadata database, shared vector index, or Databricks production dependency.
+metadata database, shared vector index, or Databricks cluster/data-store dependency. Databricks
+Model Serving can be used for the chat and embedding models.
 
 ## What works
 
@@ -13,8 +14,11 @@ metadata database, shared vector index, or Databricks production dependency.
 - Plan-year history for the same EIN and three-digit plan number
 - Direct public filing retrieval, with defensive ZIP extraction and a manual-upload fallback
 - PyMuPDF page-aware text extraction and Schedule H financial heuristics
-- Plotly asset, participant, income/expense, and reported asset-category charts
+- Plotly asset, participant, income/expense, and reported asset-category charts with independent
+  zoom and reset controls
 - A per-filing in-memory Chroma collection and a LangGraph `retrieve → answer` flow
+- Databricks Model Serving with `databricks-claude-haiku-4-5` and
+  `databricks-qwen3-embedding-0-6b`
 - Swappable OpenAI or Anthropic chat models; OpenAI or local sentence-transformer embeddings
 - Page citations and supporting retrieved excerpts with every chat answer
 - Plain-language definitions and prominent aggregate-data disclaimers
@@ -60,7 +64,17 @@ uv sync --extra dev
 uv run streamlit run app.py
 ```
 
-Search and deterministic charts do not require an API key. For filing chat, export one key:
+Search and deterministic charts do not require a model credential. The configured Databricks
+models use these settings:
+
+```bash
+export DATABRICKS_FM_BASE_URL="https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+export DATABRICKS_FM_TOKEN="dapi-..."
+export EMBEDDING_MODEL="databricks-qwen3-embedding-0-6b"
+export LLM_MODEL="databricks-claude-haiku-4-5"
+```
+
+OpenAI and Anthropic remain available as alternatives:
 
 ```bash
 export OPENAI_API_KEY="..."
@@ -69,8 +83,13 @@ export ANTHROPIC_API_KEY="..."
 ```
 
 You can instead copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`. The populated
-file is ignored by Git. Model names can be overridden with `OPENAI_MODEL` and `ANTHROPIC_MODEL`.
-The defaults follow current provider documentation; account availability can differ.
+file is ignored by Git. Never put the Databricks token in source code. Model names can also be
+overridden with `OPENAI_MODEL` and `ANTHROPIC_MODEL`.
+
+The Databricks adapter uses the workspace's OpenAI-compatible serving routes. Filing chunks are
+embedded without an instruction; Qwen question embeddings receive a retrieval-specific instruction
+as recommended for that model. Both chunks and retrieved excerpts are sent to the configured
+Databricks workspace.
 
 With Anthropic, PensionPeek uses local `all-MiniLM-L6-v2` embeddings because Anthropic does not
 provide the embedding adapter used here. The model downloads on first use. With OpenAI, the UI lets
@@ -105,9 +124,9 @@ EFAST2 search API
 ```
 
 The Chroma client is `EphemeralClient`; it is local and session-scoped, not hosted or shared.
-OpenAI embeddings transmit extracted filing chunks to OpenAI. Local embeddings keep embedding
-input on the app machine. In either configuration, the retrieved excerpts needed to answer a
-question are sent to the chosen model provider.
+Databricks or OpenAI embeddings transmit extracted filing chunks to the selected provider. Local
+embeddings keep embedding input on the app machine. In every configuration, the retrieved excerpts
+needed to answer a question are sent to the selected answering provider.
 
 ## Known limitations
 

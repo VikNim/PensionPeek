@@ -20,6 +20,7 @@ def _layout(fig: go.Figure, *, percent: bool = False) -> go.Figure:
         plot_bgcolor="rgba(0,0,0,0)",
         font={"family": "Source Sans Pro, sans-serif", "color": NAVY},
         margin={"l": 10, "r": 10, "t": 35, "b": 10},
+        height=330,
         hoverlabel={"bgcolor": "white", "font_color": NAVY},
         legend={"orientation": "h", "y": 1.12, "x": 0},
     )

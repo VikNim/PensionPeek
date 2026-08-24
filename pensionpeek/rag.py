@@ -3,11 +3,17 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
+from urllib.parse import urlparse
 
 from pensionpeek.models import TextChunk
 
-Provider = Literal["OpenAI", "Anthropic"]
-EmbeddingBackend = Literal["OpenAI", "Local"]
+Provider = Literal["Databricks", "OpenAI", "Anthropic"]
+EmbeddingBackend = Literal["Databricks", "OpenAI", "Local"]
+
+DATABRICKS_QUERY_INSTRUCTION = (
+    "Given a question about a Form 5500 filing, retrieve relevant filing passages that answer "
+    "the question."
+)
 
 
 class RagError(RuntimeError):
@@ -48,6 +54,78 @@ class _LocalEmbeddings:
         return vector.tolist()
 
 
+def normalize_databricks_base_url(value: str) -> str:
+    """Validate and normalize a Databricks OpenAI-compatible API base URL."""
+    raw = value.strip().rstrip("/")
+    if not raw:
+        raise RagError("Enter the Databricks foundation-model base URL.")
+    parsed = urlparse(raw)
+    hostname = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme != "https"
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or not hostname.endswith((".databricks.com", ".azuredatabricks.net"))
+    ):
+        raise RagError("Use an HTTPS Databricks workspace URL without credentials or query text.")
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/serving-endpoints"
+    if path not in {"/serving-endpoints", "/ai-gateway/mlflow/v1"}:
+        raise RagError(
+            "Databricks base URL must end in /serving-endpoints or /ai-gateway/mlflow/v1."
+        )
+    return parsed._replace(path=path, params="", query="", fragment="").geturl()
+
+
+class _DatabricksEmbeddings:
+    """OpenAI-compatible Databricks embeddings with Qwen query instructions."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str,
+        model_name: str,
+        batch_size: int = 128,
+        client: Any | None = None,
+    ) -> None:
+        if client is None:
+            try:
+                from openai import OpenAI
+            except ImportError as exc:  # pragma: no cover - incomplete environment only
+                raise RagError("The OpenAI-compatible client is not installed.") from exc
+            client = OpenAI(api_key=api_key, base_url=normalize_databricks_base_url(base_url))
+        self.client = client
+        self.model_name = model_name
+        self.batch_size = batch_size
+
+    @staticmethod
+    def _vectors(response: Any) -> list[list[float]]:
+        ordered = sorted(response.data, key=lambda item: item.index)
+        return [list(item.embedding) for item in ordered]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), self.batch_size):
+            response = self.client.embeddings.create(
+                model=self.model_name,
+                input=texts[start : start + self.batch_size],
+            )
+            vectors.extend(self._vectors(response))
+        return vectors
+
+    def embed_query(self, text: str) -> list[float]:
+        response = self.client.embeddings.create(
+            model=self.model_name,
+            input=text,
+            extra_body={"instruction": DATABRICKS_QUERY_INSTRUCTION},
+        )
+        return self._vectors(response)[0]
+
+
 def _message_text(message: Any) -> str:
     content = getattr(message, "content", message)
     if isinstance(content, str):
@@ -77,11 +155,13 @@ class RagEngine:
         embedding_backend: EmbeddingBackend = "OpenAI",
         embedding_model: str = "text-embedding-3-small",
         local_embedding_model: str = "all-MiniLM-L6-v2",
+        databricks_base_url: str = "",
     ) -> None:
         if not chunks:
             raise RagError("There is no extracted filing text to index.")
         if not api_key:
-            raise RagError(f"Enter an API key for {provider}.")
+            credential = "API token" if provider == "Databricks" else "API key"
+            raise RagError(f"Enter an {credential} for {provider}.")
         self.provider = provider
         self.model_name = model_name
 
@@ -94,7 +174,15 @@ class RagEngine:
                 "RAG dependencies are not installed. Run `pip install -r requirements.txt`."
             ) from exc
 
-        if embedding_backend == "OpenAI":
+        if embedding_backend == "Databricks":
+            if provider != "Databricks":
+                raise RagError("Databricks embeddings require the Databricks provider and token.")
+            self.embeddings = _DatabricksEmbeddings(
+                api_key=api_key,
+                base_url=databricks_base_url,
+                model_name=embedding_model,
+            )
+        elif embedding_backend == "OpenAI":
             if provider != "OpenAI":
                 raise RagError(
                     "OpenAI embeddings require an OpenAI API key; use Local embeddings with "
@@ -109,10 +197,18 @@ class RagEngine:
             self.embeddings = _LocalEmbeddings(local_embedding_model)
 
         try:
-            if provider == "OpenAI":
+            if provider in {"OpenAI", "Databricks"}:
                 from langchain_openai import ChatOpenAI
 
-                self.llm = ChatOpenAI(model=model_name, api_key=api_key)
+                chat_kwargs: dict[str, Any] = {"model": model_name, "api_key": api_key}
+                if provider == "Databricks":
+                    chat_kwargs.update(
+                        {
+                            "base_url": normalize_databricks_base_url(databricks_base_url),
+                            "max_tokens": 1_400,
+                        }
+                    )
+                self.llm = ChatOpenAI(**chat_kwargs)
             else:
                 from langchain_anthropic import ChatAnthropic
 
