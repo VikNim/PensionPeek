@@ -116,30 +116,117 @@ def income_expense_chart(metrics: FilingMetrics) -> go.Figure | None:
     return _layout(fig)
 
 
+def balance_sheet_chart(metrics: FilingMetrics) -> go.Figure | None:
+    rows = [
+        ("Assets", metrics.assets_boy, metrics.assets_eoy),
+        ("Liabilities", metrics.liabilities_boy, metrics.liabilities_eoy),
+        ("Net assets", metrics.net_assets_boy, metrics.net_assets_eoy),
+    ]
+    rows = [row for row in rows if row[1] is not None or row[2] is not None]
+    if not rows:
+        return None
+    labels = [row[0] for row in rows]
+    fig = go.Figure()
+    if any(row[1] is not None for row in rows):
+        fig.add_bar(
+            y=labels,
+            x=[row[1] for row in rows],
+            name="Beginning of year",
+            orientation="h",
+            marker_color=MINT,
+            hovertemplate="%{y}<br>BOY: $%{x:,.0f}<extra></extra>",
+        )
+    if any(row[2] is not None for row in rows):
+        fig.add_bar(
+            y=labels,
+            x=[row[2] for row in rows],
+            name="End of year",
+            orientation="h",
+            marker_color=TEAL,
+            hovertemplate="%{y}<br>EOY: $%{x:,.0f}<extra></extra>",
+        )
+    fig.update_layout(barmode="group")
+    fig.update_xaxes(tickprefix="$", tickformat="~s", automargin=True)
+    fig.update_yaxes(autorange="reversed", automargin=True)
+    return _layout(fig)
+
+
+def net_asset_reconciliation_chart(metrics: FilingMetrics) -> go.Figure | None:
+    if (
+        metrics.net_assets_boy is None
+        or metrics.net_assets_eoy is None
+        or metrics.net_income is None
+    ):
+        return None
+    residual = metrics.net_assets_eoy - metrics.net_assets_boy - metrics.net_income
+    fig = go.Figure(
+        go.Waterfall(
+            x=[
+                "Beginning<br>net assets",
+                "Net income",
+                "Reconciling<br>change",
+                "Ending<br>net assets",
+            ],
+            y=[metrics.net_assets_boy, metrics.net_income, residual, metrics.net_assets_eoy],
+            measure=["absolute", "relative", "relative", "total"],
+            connector={"line": {"color": "#A8A195", "width": 1}},
+            increasing={"marker": {"color": TEAL}},
+            decreasing={"marker": {"color": CORAL}},
+            totals={"marker": {"color": NAVY}},
+            hovertemplate="%{x}<br>$%{y:,.0f}<extra></extra>",
+        )
+    )
+    fig.update_yaxes(tickprefix="$", tickformat="~s", automargin=True)
+    return _layout(fig)
+
+
 def asset_categories_chart(metrics: FilingMetrics) -> go.Figure | None:
     values = {name: value for name, value in metrics.asset_categories.items() if value > 0}
     if not values:
         return None
+    if len(values) > 7:
+        ranked = sorted(values.items(), key=lambda item: item[1], reverse=True)
+        values = dict(ranked[:6])
+        values["Other reported categories"] = sum(value for _name, value in ranked[6:])
+    total = sum(values.values())
+    labels = list(values)
+    percentages = [value / total for value in values.values()]
     fig = go.Figure(
         go.Pie(
-            labels=list(values),
+            labels=labels,
             values=list(values.values()),
             hole=0.62,
             sort=False,
+            domain={"x": [0, 0.58], "y": [0.04, 0.96]},
             marker={"colors": [TEAL, CORAL, GOLD, MINT, NAVY, "#A48CB4", "#7895B2"]},
-            textinfo="percent",
+            text=[f"{percentage:.1%}" if percentage >= 0.03 else "" for percentage in percentages],
+            textinfo="text",
+            textposition="inside",
+            insidetextorientation="horizontal",
             hovertemplate="%{label}<br>$%{value:,.0f}<br>%{percent}<extra></extra>",
         )
     )
+    fig = _layout(fig)
     fig.update_layout(
+        height=max(360, 32 * len(labels) + 160),
+        margin={"l": 5, "r": 5, "t": 10, "b": 10},
+        legend={
+            "orientation": "v",
+            "x": 0.62,
+            "xanchor": "left",
+            "y": 0.96,
+            "yanchor": "top",
+            "font": {"size": 11},
+        },
+        uniformtext={"minsize": 10, "mode": "hide"},
         annotations=[
             {
                 "text": "Plan-level<br>categories",
-                "x": 0.5,
+                "x": 0.29,
                 "y": 0.5,
                 "font": {"size": 14, "color": NAVY},
                 "showarrow": False,
             }
-        ]
+        ],
     )
-    return _layout(fig)
+    return fig

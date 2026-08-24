@@ -11,7 +11,9 @@ import pensionpeek.rag as rag_module
 from pensionpeek.charts import (
     asset_categories_chart,
     assets_history_chart,
+    balance_sheet_chart,
     income_expense_chart,
+    net_asset_reconciliation_chart,
     participants_history_chart,
 )
 from pensionpeek.efast import EfastClient, EfastError
@@ -79,6 +81,13 @@ APP_CSS = """
         padding: .5rem .75rem; background: rgba(255,253,248,.86); color: #624f29;
         font-size: .82rem; line-height: 1.35; margin: .15rem 0 .7rem;
     }
+    .pp-glossary-card {
+        min-height: 108px; padding: .75rem .85rem; margin-bottom: .65rem;
+        border: 1px solid var(--rule); border-radius: 10px;
+        background: rgba(255,253,248,.76);
+    }
+    .pp-glossary-card strong { display: block; color: var(--teal); margin-bottom: .3rem; }
+    .pp-glossary-card span { color: #42576a; font-size: .9rem; line-height: 1.4; }
     .pp-plan-head {
         padding: .7rem 1rem; background: var(--ink); color: white; border-radius: 12px;
         margin: .65rem 0 .65rem; box-shadow: 0 8px 20px rgba(23,50,77,.10);
@@ -243,9 +252,10 @@ def _render_header() -> None:
     )
     st.markdown(
         """
-        <div class="pp-disclaimer"><strong>Plan-level public data:</strong> not a personal account
-        balance or holdings, and not legal, tax, fiduciary, or investment advice. Individual
-        investments appear only when a public Schedule of Assets is attached.</div>
+        <div class="pp-disclaimer" role="alert"><strong>Research aid—not an official statement:
+        </strong> figures are aggregate public plan data, may be amended or incomplete, and some
+        values are extracted automatically. Verify the source filing before relying on them. Nothing
+        shown is a personal account balance or legal, tax, fiduciary, or investment advice.</div>
         """,
         unsafe_allow_html=True,
     )
@@ -519,6 +529,36 @@ def _render_financials(filing: Filing, parsed: ParsedFiling | None) -> None:
             "or personal holdings."
         )
 
+    third, fourth = st.columns(2, gap="large")
+    with third:
+        st.markdown("**Beginning- and end-of-year financial position**")
+        fig = balance_sheet_chart(metrics)
+        if fig:
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                config=PLOTLY_CONFIG,
+                key=f"balance-sheet-{filing.key}",
+            )
+        else:
+            st.info("No comparable beginning- and end-of-year totals were detected.")
+    with fourth:
+        st.markdown("**Net-asset reconciliation**")
+        fig = net_asset_reconciliation_chart(metrics)
+        if fig:
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                config=PLOTLY_CONFIG,
+                key=f"net-asset-reconciliation-{filing.key}",
+            )
+            st.caption(
+                "Reconciling change is the calculated difference needed to connect beginning net "
+                "assets, net income, and ending net assets; it does not assign a cause."
+            )
+        else:
+            st.info("Net assets, income, and expense totals are needed for this reconciliation.")
+
     st.markdown("#### Extracted totals")
     rows = [
         {
@@ -705,9 +745,17 @@ def _render_source(
 
 def _render_glossary() -> None:
     st.markdown("#### Plain-language glossary")
-    for term, definition in TERMS.items():
-        with st.expander(term):
-            st.write(definition)
+    st.caption("Definitions used throughout PensionPeek. These describe plan-level filing fields.")
+    columns = st.columns(2, gap="medium")
+    for index, (term, definition) in enumerate(TERMS.items()):
+        with columns[index % 2]:
+            st.markdown(
+                '<div class="pp-glossary-card">'
+                f"<strong>{html.escape(term)}</strong>"
+                f"<span>{html.escape(definition)}</span>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def main() -> None:
