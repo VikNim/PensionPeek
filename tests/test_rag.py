@@ -35,6 +35,9 @@ def test_normalizes_databricks_serving_base() -> None:
     assert normalize_databricks_base_url("https://dbc-example.cloud.databricks.com") == (
         "https://dbc-example.cloud.databricks.com/serving-endpoints"
     )
+    assert normalize_databricks_base_url("dbc-example.cloud.databricks.com") == (
+        "https://dbc-example.cloud.databricks.com/serving-endpoints"
+    )
     assert normalize_databricks_base_url(
         "https://dbc-example.cloud.databricks.com/ai-gateway/mlflow/v1/"
     ).endswith("/ai-gateway/mlflow/v1")
