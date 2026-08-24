@@ -136,6 +136,7 @@ class _DatabricksEmbeddings:
 
 class _DatabricksOAuthToken:
     """Refreshable token callback backed by unified Databricks SDK authentication."""
+    """Refreshable token callback backed by unified Databricks SDK authentication."""
 
     def __init__(
         self,
