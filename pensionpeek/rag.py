@@ -63,6 +63,10 @@ def normalize_databricks_base_url(value: str) -> str:
     raw = value.strip().rstrip("/")
     if not raw:
         raise RagError("Enter the Databricks foundation-model base URL.")
+    # Some managed runtimes expose a workspace hostname without its scheme. Enforce HTTPS
+    # before applying the strict Databricks domain, credential, query, and path checks below.
+    if "://" not in raw:
+        raw = f"https://{raw}"
     parsed = urlparse(raw)
     hostname = (parsed.hostname or "").lower()
     if (
@@ -131,7 +135,7 @@ class _DatabricksEmbeddings:
 
 
 class _DatabricksOAuthToken:
-    """Refreshable API-key callback backed by a Databricks CLI OAuth profile."""
+    """Refreshable token callback backed by unified Databricks SDK authentication."""
 
     def __init__(
         self,
