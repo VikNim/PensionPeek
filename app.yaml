@@ -1,0 +1,11 @@
+command:
+  - streamlit
+  - run
+  - app.py
+
+env:
+  - name: LLM_MODEL
+    valueFrom: llm_endpoint
+
+  - name: EMBEDDING_MODEL
+    valueFrom: embedding_endpoint

@@ -632,14 +632,26 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
 
 
 def _build_databricks_rag_engine(filing: Filing, parsed: ParsedFiling) -> RagEngine:
-    base_url = (
-        _secret("DATABRICKS_FM_BASE_URL")
-        or "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+    databricks_host = _secret("DATABRICKS_HOST")
+    default_base_url = (
+        f"{databricks_host.rstrip('/')}/serving-endpoints"
+        if databricks_host
+        else "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
     )
+
+    base_url = _secret("DATABRICKS_FM_BASE_URL") or default_base_url
     model_name = _secret("LLM_MODEL") or "databricks-claude-haiku-4-5"
-    embedding_model = _secret("EMBEDDING_MODEL") or "databricks-qwen3-embedding-0-6b"
+    embedding_model = (
+        _secret("EMBEDDING_MODEL")
+        or "databricks-qwen3-embedding-0-6b"
+    )
+
+    # Set locally through DATABRICKS_PROFILE.
+    # Empty inside Databricks Apps so unified service-principal auth is used.
     profile = (
-        _secret("DATABRICKS_PROFILE") or _secret("DATABRICKS_CONFIG_PROFILE") or "dbc-7b106152-caf3"
+        _secret("DATABRICKS_PROFILE")
+        or _secret("DATABRICKS_CONFIG_PROFILE")
+        or ""
     )
     fingerprint = (filing.key, model_name, embedding_model, base_url, profile)
     existing: RagEngine | None = st.session_state.rag_engine

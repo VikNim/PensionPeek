@@ -141,52 +141,83 @@ class _DatabricksOAuthToken:
         workspace_client: Any | None = None,
     ) -> None:
         cleaned_profile = profile.strip()
-        if not cleaned_profile:
-            raise RagError(
-                "Set DATABRICKS_PROFILE to a profile created by `databricks auth login`, or "
-                "provide DATABRICKS_FM_TOKEN."
-            )
         if workspace_client is None:
             try:
                 from databricks.sdk import WorkspaceClient
-            except ImportError as exc:  # pragma: no cover - incomplete environment only
+            except ImportError as exc:
                 raise RagError(
-                    "OAuth profile authentication requires databricks-sdk. Install the project "
-                    "dependencies first."
-                ) from exc
-            try:
-                workspace_client = WorkspaceClient(profile=cleaned_profile)
-            except Exception as exc:
-                raise RagError(
-                    f"Databricks OAuth profile {cleaned_profile!r} is unavailable or expired. "
-                    f"Run `databricks auth login --profile {cleaned_profile}` and try again."
+                    "Databricks authentication requires databricks-sdk. "
+                    "Install the project dependencies first."
                 ) from exc
 
-        serving_host = (urlparse(normalize_databricks_base_url(base_url)).hostname or "").lower()
-        profile_url = str(getattr(workspace_client.config, "host", "") or "")
-        profile_host = (urlparse(profile_url).hostname or "").lower()
-        if not profile_host or profile_host != serving_host:
+            try:
+                if cleaned_profile:
+                    # Local development using `databricks auth login`.
+                    workspace_client = WorkspaceClient(profile=cleaned_profile)
+                else:
+                    # Databricks Apps: uses injected service-principal credentials.
+                    workspace_client = WorkspaceClient()
+            except Exception as exc:
+                if cleaned_profile:
+                    message = (
+                        f"Databricks OAuth profile {cleaned_profile!r} is unavailable "
+                        f"or expired. Run `databricks auth login "
+                        f"--profile {cleaned_profile}` and try again."
+                    )
+                else:
+                    message = (
+                        "Databricks Apps service-principal authentication is unavailable. "
+                        "Verify the app resources and environment configuration."
+                    )
+                raise RagError(message) from exc
+        
+        auth_description = (
+            f"Databricks profile {cleaned_profile!r}"
+            if cleaned_profile
+            else "Databricks Apps service principal"
+        )
+
+        serving_host = (
+            urlparse(normalize_databricks_base_url(base_url)).hostname or ""
+        ).lower()
+        configured_url = str(getattr(workspace_client.config, "host", "") or "")
+        configured_host = (urlparse(configured_url).hostname or "").lower()
+
+        if not configured_host or configured_host != serving_host:
             raise RagError(
-                f"Databricks profile {cleaned_profile!r} targets {profile_host or 'no host'}, but "
-                f"the model-serving URL targets {serving_host}."
+                f"{auth_description} targets {configured_host or 'no host'}, "
+                f"but the model-serving URL targets {serving_host}."
             )
+
         self.profile = cleaned_profile
+        self.auth_description = auth_description
         self.workspace_client = workspace_client
 
     def __call__(self) -> str:
         try:
             headers = self.workspace_client.config.authenticate()
         except Exception as exc:
-            raise RagError(
-                f"Databricks OAuth profile {self.profile!r} is unavailable or expired. Run "
-                f"`databricks auth login --profile {self.profile}` and try again."
-            ) from exc
+            if self.profile:
+                message = (
+                    f"Databricks OAuth profile {self.profile!r} is unavailable or "
+                    f"expired. Run `databricks auth login "
+                    f"--profile {self.profile}` and try again."
+                )
+            else:
+                message = (
+                    "Databricks Apps service-principal authentication failed. "
+                    "Verify the app resource permissions."
+                )
+            raise RagError(message) from exc
+
         authorization = str(headers.get("Authorization", ""))
         scheme, separator, token = authorization.partition(" ")
+
         if not separator or scheme.lower() != "bearer" or not token.strip():
             raise RagError(
-                f"Databricks OAuth profile {self.profile!r} did not return a bearer token."
+                f"{self.auth_description} did not return a bearer token."
             )
+
         return token.strip()
 
 
