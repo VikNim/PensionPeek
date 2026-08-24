@@ -137,7 +137,13 @@ def test_rebuilding_same_filing_uses_isolated_chroma_collection(
     )
     settings = {
         "filing_key": "same-filing",
-        "chunks": [TextChunk(chunk_id="p1-c1", page=1, text="Filing text")],
+        "chunks": [
+            TextChunk(
+                chunk_id="p1-c1",
+                page=1,
+                text="Masked ABCDEFGHI -123456789012345; filing value $42,000",
+            )
+        ],
         "provider": "Databricks",
         "api_key": "not-sent-in-test",
         "model_name": "databricks-claude-haiku-4-5",
@@ -151,6 +157,51 @@ def test_rebuilding_same_filing_uses_isolated_chroma_collection(
     try:
         assert first._collection_name != second._collection_name
         assert first.collection.count() == second.collection.count() == 1
+        stored_document = first.collection.get(include=["documents"])["documents"][0]
+        assert "ABCDEFGHI" not in stored_document
+        assert "-123456789012345" not in stored_document
+        assert "$42,000" in stored_document
     finally:
         first.close()
         second.close()
+
+
+def test_answer_prompt_rejects_and_output_removes_mask_artifacts() -> None:
+    class FakeLlm:
+        def __init__(self) -> None:
+            self.messages: list[object] = []
+
+        def invoke(self, messages: list[object]) -> SimpleNamespace:
+            self.messages = messages
+            return SimpleNamespace(
+                content="Masked ABCDEFGHI -123456789012345. Supported value is $42,000 [p. 1]."
+            )
+
+    engine = object.__new__(RagEngine)
+    engine.provider = "Databricks"
+    engine.llm = FakeLlm()
+
+    result = engine._answer(
+        {
+            "query": "What is the value?",
+            "conversation": [],
+            "retrieved": [
+                {
+                    "text": "Masked ABCDEFGHI; valid value $42,000",
+                    "page": 1,
+                    "chunk_id": "p1-c1",
+                    "distance": 0.1,
+                }
+            ],
+        }
+    )
+
+    assert "ABCDEFGHI" not in result["answer"]
+    assert "-123456789012345" not in result["answer"]
+    assert "$42,000" in result["answer"]
+    assert "ABCDEFGHI" not in result["citations"][0]["excerpt"]
+    system_prompt = str(engine.llm.messages[0].content)
+    user_prompt = str(engine.llm.messages[1].content)
+    assert "Never quote" in system_prompt
+    assert "numeric sentinels" in system_prompt
+    assert "ABCDEFGHI" not in user_prompt

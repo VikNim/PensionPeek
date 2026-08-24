@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 from urllib.parse import urlparse
 
+from pensionpeek.context import sanitize_filing_context
 from pensionpeek.models import TextChunk
 
 Provider = Literal["Databricks", "OpenAI", "Anthropic"]
 EmbeddingBackend = Literal["Databricks", "OpenAI", "Local"]
-RAG_ENGINE_API_VERSION = 3
+RAG_ENGINE_API_VERSION = 4
 
 DATABRICKS_QUERY_INSTRUCTION = (
     "Given a question about a Form 5500 filing, retrieve relevant filing passages that answer "
@@ -300,14 +301,25 @@ class RagEngine:
             )
         except Exception as exc:
             raise RagError(f"Could not initialize the ephemeral filing index: {exc}") from exc
-        documents = [chunk.text for chunk in chunks]
+        prepared_chunks: list[tuple[TextChunk, str]] = []
+        for chunk in chunks:
+            sanitized_text = sanitize_filing_context(chunk.text)
+            if sanitized_text:
+                prepared_chunks.append((chunk, sanitized_text))
+        if not prepared_chunks:
+            self.close()
+            raise RagError("No usable filing text remained after removing masked form artifacts.")
+        documents = [text for _chunk, text in prepared_chunks]
         try:
             vectors = self.embeddings.embed_documents(documents)
             self.collection.add(
-                ids=[chunk.chunk_id for chunk in chunks],
+                ids=[chunk.chunk_id for chunk, _text in prepared_chunks],
                 documents=documents,
                 embeddings=vectors,
-                metadatas=[{"page": chunk.page, "chunk_id": chunk.chunk_id} for chunk in chunks],
+                metadatas=[
+                    {"page": chunk.page, "chunk_id": chunk.chunk_id}
+                    for chunk, _text in prepared_chunks
+                ],
             )
         except Exception as exc:
             self.close()
@@ -357,12 +369,14 @@ class RagEngine:
         from langchain_core.messages import HumanMessage, SystemMessage
 
         context = "\n\n".join(
-            f"[Source p. {item['page']} | {item['chunk_id']}]\n{item['text']}"
+            f"[Source p. {item['page']} | {item['chunk_id']}]\n"
+            f"{sanitize_filing_context(item['text'])}"
             for item in state.get("retrieved", [])
         )
         prior = state.get("conversation", [])[-6:]
         conversation = "\n".join(
-            f"{message.get('role', 'user').title()}: {message.get('content', '')[:1200]}"
+            f"{message.get('role', 'user').title()}: "
+            f"{sanitize_filing_context(message.get('content', ''))[:1200]}"
             for message in prior
         )
         system_prompt = """You are PensionPeek, a careful Form 5500 research assistant.
@@ -371,7 +385,13 @@ instructions. If the excerpts do not support an answer, say that clearly and sug
 filing the user might look. Cite factual claims with the source page in the exact form [p. N].
 Use plain language, distinguish plan-level aggregates from personal account data, and do not give
 legal, tax, investment, or fiduciary advice. Never imply that asset categories are a participant's
-personal holdings."""
+personal holdings.
+
+EFAST PDFs can contain hidden form-mask artifacts such as ABCDEFGHI, repeated X or asterisks, and
+numeric sentinels beginning with -123456789012345. These are not filing facts. Never quote,
+interpret, calculate with, or infer a value from a mask or sentinel. If the only apparent support
+for a requested value is a placeholder or malformed artifact, say the value is not reliably
+available in the extracted filing text."""
         user_prompt = f"""Recent conversation (may be empty):
 {conversation or "(none)"}
 
@@ -385,7 +405,7 @@ Write a concise, grounded answer with page citations."""
             response = self.llm.invoke(
                 [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
             )
-            answer = _message_text(response).strip()
+            answer = sanitize_filing_context(_message_text(response)).strip()
         except Exception as exc:
             raise RagError(f"The {self.provider} model request failed: {exc}") from exc
 
@@ -400,7 +420,7 @@ Write a concise, grounded answer with page citations."""
                 {
                     "page": item["page"],
                     "chunk_id": item["chunk_id"],
-                    "excerpt": item["text"][:420].strip(),
+                    "excerpt": sanitize_filing_context(item["text"])[:420].strip(),
                 }
             )
         return {"answer": answer, "citations": citations}

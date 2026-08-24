@@ -24,7 +24,7 @@ from pensionpeek.retrieval import RetrievalError, download_filing, resolve_filin
 
 # Streamlit can re-run app.py while retaining an older imported project module. Refresh only when
 # the cached RAG implementation predates the current API and collection-lifecycle behavior.
-if getattr(rag_module, "RAG_ENGINE_API_VERSION", 0) < 3:
+if getattr(rag_module, "RAG_ENGINE_API_VERSION", 0) < 4:
     importlib.invalidate_caches()
     rag_module = importlib.reload(rag_module)
 
@@ -368,47 +368,18 @@ def _render_plan_identity(filing: Filing) -> None:
     )
 
 
-def _render_fallback_upload(filing: Filing) -> None:
+def _render_retrieval_error() -> None:
     error = st.session_state.retrieval_error
     if not error:
         return
     st.warning(error)
-    with st.expander("Use a filing PDF from your computer", expanded=True):
-        st.write(
-            "If DOL does not serve this image, upload a PDF you already obtained from the "
-            "official search. "
-            "It stays in this Streamlit session."
-        )
-        uploaded = st.file_uploader(
-            "Form 5500 PDF",
-            type=["pdf"],
-            key=f"upload-{filing.key}",
-            label_visibility="collapsed",
-        )
-        if uploaded and st.button("Read uploaded PDF", type="primary"):
-            try:
-                content = uploaded.getvalue()
-                st.session_state.parsed = parse_pdf(content)
-                st.session_state.retrieved = RetrievedFiling(
-                    pdf_bytes=content,
-                    filename=uploaded.name,
-                    source_url="Manual upload",
-                    was_archive=False,
-                )
-                st.session_state.retrieval_error = None
-                st.session_state.chat_messages = []
-                st.session_state.rag_engine = None
-                st.session_state.rag_fingerprint = None
-                st.rerun()
-            except ParsingError as exc:
-                st.error(str(exc))
-    if error:
-        st.markdown(
-            "For bulk or unavailable images, DOL documents an **EBSA Form 5500 image service**. "
-            "Email [foiarequest@dol.gov](mailto:foiarequest@dol.gov?subject="
-            "EBSA%20Form%205500%20image%20service%20request) "
-            "with that subject and your contact information."
-        )
+    st.markdown(
+        "For unavailable filing images, use the official DOL source link when present. DOL also "
+        "documents an **EBSA Form 5500 image service**; email "
+        "[foiarequest@dol.gov](mailto:foiarequest@dol.gov?subject="
+        "EBSA%20Form%205500%20image%20service%20request) with that subject and your contact "
+        "information."
+    )
 
 
 def _render_overview(filing: Filing, parsed: ParsedFiling | None) -> None:
@@ -785,7 +756,7 @@ def main() -> None:
         return
 
     _render_plan_identity(filing)
-    _render_fallback_upload(filing)
+    _render_retrieval_error()
     parsed: ParsedFiling | None = st.session_state.parsed
     retrieved: RetrievedFiling | None = st.session_state.retrieved
     overview, financials, ask, source, glossary = st.tabs(

@@ -4,6 +4,7 @@ import io
 import re
 from collections.abc import Iterable
 
+from pensionpeek.context import contains_mask_artifact, sanitize_filing_context
 from pensionpeek.models import FilingMetrics, ParsedFiling, TextChunk
 
 
@@ -243,7 +244,7 @@ def chunk_pages(
         raise ValueError("Chunk size must be larger than overlap.")
     chunks: list[TextChunk] = []
     for page_number, page_text in enumerate(pages, start=1):
-        text = re.sub(r"[ \t]+", " ", page_text).strip()
+        text = sanitize_filing_context(page_text)
         if not text:
             continue
         start = 0
@@ -295,6 +296,10 @@ def parse_pdf(pdf_bytes: bytes) -> ParsedFiling:
 
     full_text = "\n\n".join(pages)
     warnings: list[str] = []
+    if any(contains_mask_artifact(page) for page in pages):
+        warnings.append(
+            "Hidden EFAST mask and sentinel artifacts were excluded from the AI retrieval context."
+        )
     if "schedule h" not in full_text.lower():
         warnings.append(
             "No Schedule H text was detected; this may be a small-plan filing or the schedule "

@@ -12,7 +12,7 @@ Model Serving can be used for the chat and embedding models.
 
 - Live EFAST2 search by company/plan sponsor name or 9-digit EIN
 - Plan-year history for the same EIN and three-digit plan number
-- Direct public filing retrieval, with defensive ZIP extraction and a manual-upload fallback
+- Direct public filing retrieval with defensive ZIP extraction
 - PyMuPDF page-aware text extraction and Schedule H financial heuristics
 - Plotly asset, participant, income/expense, and reported asset-category charts with independent
   zoom and reset controls
@@ -22,6 +22,7 @@ Model Serving can be used for the chat and embedding models.
 - Model configuration supplied by the deployment rather than requested from end users
 - A fixed-height, auto-scrolling Q&A panel with an always-visible inline chat input
 - Page citations and supporting retrieved excerpts with every chat answer
+- Known EFAST mask and numeric-sentinel artifacts removed before embedding and answering
 - Plain-language definitions and prominent aggregate-data disclaimers
 
 ## Filing retrieval finding
@@ -40,7 +41,7 @@ differs from older DOL help language describing a ZIP download. PensionPeek ther
 1. tries the current DOL-owned S3 path;
 2. identifies content by file signature rather than HTTP content type;
 3. accepts either a direct PDF or a ZIP containing PDFs; and
-4. clearly offers upload and DOL bulk-image-service alternatives when disclosure is unavailable.
+4. directs users to official DOL source and bulk-image-service options when disclosure is unavailable.
 
 Only allowlisted DOL/S3 hosts are accepted, redirects are rechecked, and downloads are capped at
 80 MB.
@@ -140,6 +141,7 @@ needed to answer a question are sent to its configured answering model.
   charted only when the selected PDF yields one; PensionPeek does not invent missing values.
 - Reported asset categories are aggregate plan categories. They are never personal allocations.
 - Investment-by-investment detail depends on whether the filing has a public Schedule of Assets.
+- Unrecognized PDF extraction artifacts can still occur; verify material values on the source pages.
 
 For unavailable filing images, DOL's search help directs developers to request its Form 5500 bulk
 image service by emailing `foiarequest@dol.gov` with subject `EBSA Form 5500 image service request`

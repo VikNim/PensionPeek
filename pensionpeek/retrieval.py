@@ -116,5 +116,5 @@ def download_filing(
         return RetrievedFiling(pdf_bytes, filename, url, was_archive=True)
 
     raise RetrievalError(
-        "DOL returned a web page instead of the filing. You can still upload a PDF manually below."
+        "DOL returned a web page instead of the filing, so PensionPeek could not parse it."
     )

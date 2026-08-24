@@ -46,6 +46,15 @@ def test_empty_pages_are_skipped() -> None:
     assert chunks[0].page == 2
 
 
+def test_chunks_exclude_masked_form_artifacts_from_llm_context() -> None:
+    chunks = chunk_pages(["Sponsor ABCDEFGHI\nAssets -123456789012345\nVisible amount $42,000"])
+
+    assert len(chunks) == 1
+    assert "ABCDEFGHI" not in chunks[0].text
+    assert "-123456789012345" not in chunks[0].text
+    assert "$42,000" in chunks[0].text
+
+
 def test_non_schedule_h_does_not_invent_financials_from_nearby_identifiers() -> None:
     text = """
     Form 5500-SF
