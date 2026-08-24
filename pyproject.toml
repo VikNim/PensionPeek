@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pensionpeek"
+version = "0.1.0"
+description = "Search, inspect, chart, and ask questions about public U.S. Form 5500 filings."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "chromadb>=1.0,<2",
+  "langchain-anthropic>=0.3,<2",
+  "langchain-core>=0.3,<2",
+  "langchain-openai>=0.3,<2",
+  "langgraph>=0.6,<2",
+  "plotly>=6,<7",
+  "PyMuPDF>=1.25,<2",
+  "requests>=2.32,<3",
+  "sentence-transformers>=3,<6",
+  "streamlit>=1.44,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<10",
+  "ruff>=0.11,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pensionpeek"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
