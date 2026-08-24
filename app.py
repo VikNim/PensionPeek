@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import html
 import importlib
-import inspect
 import os
 from typing import Any
 
@@ -22,11 +21,8 @@ from pensionpeek.parser import ParsingError, parse_pdf
 from pensionpeek.retrieval import RetrievalError, download_filing, resolve_filing_url
 
 # Streamlit can re-run app.py while retaining an older imported project module. Refresh only when
-# that cached constructor predates the current Databricks integration.
-_required_rag_parameters = {"databricks_base_url", "databricks_profile"}
-if not _required_rag_parameters.issubset(
-    inspect.signature(rag_module.RagEngine.__init__).parameters
-):
+# the cached RAG implementation predates the current API and collection-lifecycle behavior.
+if getattr(rag_module, "RAG_ENGINE_API_VERSION", 0) < 3:
     importlib.invalidate_caches()
     rag_module = importlib.reload(rag_module)
 
@@ -104,6 +100,11 @@ APP_CSS = """
     .stButton > button[kind="primary"]:hover, .stFormSubmitButton > button:hover {
         background: #c95449; color: white; border: 0;
     }
+    .st-key-pp_chat_input {
+        position: sticky; bottom: .6rem; z-index: 20; padding: .25rem .35rem .1rem;
+        border-radius: 12px; background: rgba(245,240,231,.96);
+        box-shadow: 0 -8px 18px rgba(23,50,77,.08);
+    }
     a { color: var(--teal) !important; }
     footer { visibility: hidden; }
     @media (max-width: 760px) {
@@ -138,6 +139,12 @@ def _init_state() -> None:
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    engine = st.session_state.rag_engine
+    if engine and getattr(engine, "api_version", 0) < rag_module.RAG_ENGINE_API_VERSION:
+        if hasattr(engine, "close"):
+            engine.close()
+        st.session_state.rag_engine = None
+        st.session_state.rag_fingerprint = None
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -157,6 +164,9 @@ def _cached_download_and_parse(filing: Filing) -> tuple[RetrievedFiling, ParsedF
 
 
 def _reset_document_state() -> None:
+    engine = st.session_state.get("rag_engine")
+    if engine and hasattr(engine, "close"):
+        engine.close()
     st.session_state.retrieved = None
     st.session_state.parsed = None
     st.session_state.retrieval_error = None
@@ -545,160 +555,6 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
         st.info("Load a readable filing PDF before building the question-answering index.")
         return
 
-    with st.popover(
-        "Model settings",
-        help="Optional provider, model, and credential overrides for filing Q&A.",
-    ):
-        provider = st.selectbox("Answering model provider", ["Databricks", "OpenAI", "Anthropic"])
-        databricks_base_url = ""
-        databricks_profile = ""
-        embedding_model = "text-embedding-3-small"
-        if provider == "Databricks":
-            databricks_base_url = st.text_input(
-                "Databricks foundation-model base URL",
-                value=(
-                    _secret("DATABRICKS_FM_BASE_URL")
-                    or "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
-                ),
-                help="HTTPS workspace URL ending in /serving-endpoints.",
-            )
-            model_column, embedding_column = st.columns(2)
-            with model_column:
-                model_name = st.text_input(
-                    "Databricks chat model",
-                    value=_secret("LLM_MODEL") or "databricks-claude-haiku-4-5",
-                )
-            with embedding_column:
-                embedding_model = st.text_input(
-                    "Databricks embedding model",
-                    value=(_secret("EMBEDDING_MODEL") or "databricks-qwen3-embedding-0-6b"),
-                )
-            env_key = _secret("DATABRICKS_FM_TOKEN")
-            databricks_profile = (
-                _secret("DATABRICKS_PROFILE")
-                or _secret("DATABRICKS_CONFIG_PROFILE")
-                or "dbc-7b106152-caf3"
-            )
-            databricks_profile = st.text_input(
-                "Databricks OAuth profile",
-                value=databricks_profile,
-                help=(
-                    "Used when no PAT is supplied. Create or refresh it with `databricks auth "
-                    "login --profile PROFILE`."
-                ),
-            )
-            embedding_backend = "Databricks"
-            credential_name = "Optional Databricks PAT"
-            privacy_note = (
-                "Filing chunks and retrieved excerpts are sent to your Databricks workspace. "
-                "Qwen document embeddings use no instruction; question embeddings use a "
-                "retrieval-specific instruction."
-            )
-        elif provider == "OpenAI":
-            model_name = st.text_input(
-                "OpenAI model",
-                value=os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
-                help="Override this if a different model is enabled for your OpenAI project.",
-            )
-            env_key = _secret("OPENAI_API_KEY")
-            embedding_backend = st.radio("Embeddings", ["OpenAI", "Local"], horizontal=True)
-            credential_name = "OpenAI API key"
-            privacy_note = (
-                "OpenAI embeddings send filing chunks to OpenAI. Local embeddings stay on this "
-                "machine. Retrieved excerpts are sent to OpenAI for answering."
-            )
-        else:
-            model_name = st.text_input(
-                "Anthropic model",
-                value=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
-                help="Override this if a different model is enabled for your Anthropic account.",
-            )
-            env_key = _secret("ANTHROPIC_API_KEY")
-            embedding_backend = "Local"
-            credential_name = "Anthropic API key"
-            privacy_note = (
-                "Embeddings stay on this machine. Retrieved filing excerpts are sent to "
-                "Anthropic for answering."
-            )
-            st.caption(
-                "Anthropic answering uses local sentence-transformer embeddings in this app."
-            )
-        if env_key:
-            st.caption(f"✓ {credential_name} loaded from environment or Streamlit secrets.")
-            api_key = env_key
-        elif provider == "Databricks":
-            api_key = st.text_input(
-                credential_name,
-                type="password",
-                help="Leave empty to authenticate through the OAuth profile above.",
-            )
-        else:
-            api_key = st.text_input(
-                credential_name,
-                type="password",
-                help=(
-                    "Kept only in this running Streamlit session; PensionPeek does not persist it."
-                ),
-            )
-        st.caption(privacy_note)
-
-    if provider == "Databricks":
-        credential_status = (
-            "PAT ready" if api_key else f"OAuth profile {databricks_profile or 'required'}"
-        )
-    else:
-        credential_status = "credential ready" if api_key else "credential required"
-    status_column, action_column = st.columns([4, 1.4], vertical_alignment="center")
-    status_column.caption(
-        f"{provider} · {model_name} · {embedding_model} · {credential_status}. "
-        "Use Model settings only when you need to change these defaults."
-    )
-    prepare_index = action_column.button(
-        "Prepare filing Q&A",
-        type="primary",
-        width="stretch",
-        help="Create an ephemeral search index for only this filing.",
-    )
-    if prepare_index:
-        fingerprint = (
-            filing.key,
-            provider,
-            model_name,
-            embedding_backend,
-            embedding_model,
-            databricks_base_url,
-            databricks_profile,
-        )
-        try:
-            with st.spinner("Chunking, embedding, and indexing this filing…"):
-                st.session_state.rag_engine = RagEngine(
-                    filing_key=filing.key,
-                    chunks=parsed.chunks,
-                    provider=provider,
-                    api_key=api_key,
-                    model_name=model_name,
-                    embedding_backend=embedding_backend,
-                    embedding_model=embedding_model,
-                    databricks_base_url=databricks_base_url,
-                    databricks_profile=databricks_profile,
-                )
-                st.session_state.rag_fingerprint = fingerprint
-                st.session_state.chat_messages = []
-            st.success(f"Indexed {len(parsed.chunks):,} page-aware filing excerpts.")
-        except RagError as exc:
-            st.error(str(exc))
-
-    engine: RagEngine | None = st.session_state.rag_engine
-    if not engine:
-        if api_key or (provider == "Databricks" and databricks_profile):
-            st.info("Select Prepare filing Q&A once to begin asking questions.")
-        else:
-            st.info(
-                "Add a Databricks OAuth profile or optional PAT in Model settings, then prepare "
-                "the filing Q&A index."
-            )
-        return
-
     suggested = None
     prompts = st.columns(3)
     if prompts[0].button("Summarize this filing", width="stretch"):
@@ -709,41 +565,102 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
         suggested = "What financial changes or notable items are supported by this filing?"
 
     messages: list[dict[str, Any]] = st.session_state.chat_messages
-    for message in messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            if message.get("citations"):
+    chat_history = st.container(
+        height=420,
+        border=True,
+        key=f"filing_chat_history_{filing.key}",
+        autoscroll=True,
+    )
+    with chat_history:
+        if not messages:
+            st.caption("Choose a suggestion or ask a question below.")
+        for message in messages:
+            _render_chat_message(message)
+
+    with st.container(key="pp_chat_input"):
+        typed = st.chat_input(
+            "Ask about assets, participants, expenses, or a filing term…",
+            key=f"filing_chat_input_{filing.key}",
+        )
+    prompt = typed or suggested
+    if not prompt:
+        return
+
+    engine: RagEngine | None = st.session_state.rag_engine
+    if not engine:
+        with chat_history:
+            try:
+                with st.spinner("Preparing this filing for Q&A…"):
+                    engine = _build_databricks_rag_engine(filing, parsed)
+            except RagError as exc:
+                st.error(str(exc))
+                return
+
+    messages.append({"role": "user", "content": prompt})
+    with chat_history:
+        _render_chat_message(messages[-1])
+        with st.chat_message("assistant"):
+            try:
+                with st.spinner("Retrieving supporting pages…"):
+                    prior = [
+                        {"role": item["role"], "content": item["content"]} for item in messages[:-1]
+                    ]
+                    result = engine.ask(prompt, prior)
+                st.markdown(result.text)
                 with st.expander("Retrieved filing excerpts"):
-                    for citation in message["citations"]:
+                    for citation in result.citations:
                         st.caption(f"Page {citation['page']} · {citation['chunk_id']}")
                         st.write(
                             citation["excerpt"] + ("…" if len(citation["excerpt"]) >= 420 else "")
                         )
+                messages.append(
+                    {"role": "assistant", "content": result.text, "citations": result.citations}
+                )
+            except RagError as exc:
+                st.error(str(exc))
 
-    typed = st.chat_input("Ask about assets, participants, expenses, or a filing term…")
-    prompt = typed or suggested
-    if not prompt:
-        return
-    messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    with st.chat_message("assistant"):
-        try:
-            with st.spinner("Retrieving supporting pages…"):
-                prior = [
-                    {"role": item["role"], "content": item["content"]} for item in messages[:-1]
-                ]
-                result = engine.ask(prompt, prior)
-            st.markdown(result.text)
+
+def _build_databricks_rag_engine(filing: Filing, parsed: ParsedFiling) -> RagEngine:
+    base_url = (
+        _secret("DATABRICKS_FM_BASE_URL")
+        or "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+    )
+    model_name = _secret("LLM_MODEL") or "databricks-claude-haiku-4-5"
+    embedding_model = _secret("EMBEDDING_MODEL") or "databricks-qwen3-embedding-0-6b"
+    profile = (
+        _secret("DATABRICKS_PROFILE") or _secret("DATABRICKS_CONFIG_PROFILE") or "dbc-7b106152-caf3"
+    )
+    fingerprint = (filing.key, model_name, embedding_model, base_url, profile)
+    existing: RagEngine | None = st.session_state.rag_engine
+    if existing and st.session_state.rag_fingerprint == fingerprint:
+        return existing
+
+    engine = RagEngine(
+        filing_key=filing.key,
+        chunks=parsed.chunks,
+        provider="Databricks",
+        api_key=_secret("DATABRICKS_FM_TOKEN"),
+        model_name=model_name,
+        embedding_backend="Databricks",
+        embedding_model=embedding_model,
+        databricks_base_url=base_url,
+        databricks_profile=profile,
+    )
+    if existing and hasattr(existing, "close"):
+        existing.close()
+    st.session_state.rag_engine = engine
+    st.session_state.rag_fingerprint = fingerprint
+    return engine
+
+
+def _render_chat_message(message: dict[str, Any]) -> None:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if message.get("citations"):
             with st.expander("Retrieved filing excerpts"):
-                for citation in result.citations:
+                for citation in message["citations"]:
                     st.caption(f"Page {citation['page']} · {citation['chunk_id']}")
                     st.write(citation["excerpt"] + ("…" if len(citation["excerpt"]) >= 420 else ""))
-            messages.append(
-                {"role": "assistant", "content": result.text, "citations": result.citations}
-            )
-        except RagError as exc:
-            st.error(str(exc))
 
 
 def _render_source(

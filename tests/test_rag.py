@@ -4,9 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from pensionpeek.models import TextChunk
 from pensionpeek.rag import (
     DATABRICKS_QUERY_INSTRUCTION,
+    RagEngine,
     RagError,
+    _collection_name,
     _DatabricksEmbeddings,
     _DatabricksOAuthToken,
     normalize_databricks_base_url,
@@ -114,3 +117,40 @@ def test_databricks_oauth_failure_is_actionable_and_sanitized() -> None:
     with pytest.raises(RagError, match="databricks auth login") as error:
         credential()
     assert "internal credential details" not in str(error.value)
+
+
+def test_chroma_collection_names_are_unique_per_engine() -> None:
+    first = _collection_name("same-filing")
+    second = _collection_name("same-filing")
+
+    assert first.startswith("pp_")
+    assert first != second
+
+
+def test_rebuilding_same_filing_uses_isolated_chroma_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _DatabricksEmbeddings,
+        "embed_documents",
+        lambda _self, texts: [[1.0, float(index)] for index, _text in enumerate(texts)],
+    )
+    settings = {
+        "filing_key": "same-filing",
+        "chunks": [TextChunk(chunk_id="p1-c1", page=1, text="Filing text")],
+        "provider": "Databricks",
+        "api_key": "not-sent-in-test",
+        "model_name": "databricks-claude-haiku-4-5",
+        "embedding_backend": "Databricks",
+        "embedding_model": "databricks-qwen3-embedding-0-6b",
+        "databricks_base_url": ("https://dbc-example.cloud.databricks.com/serving-endpoints"),
+    }
+
+    first = RagEngine(**settings)
+    second = RagEngine(**settings)
+    try:
+        assert first._collection_name != second._collection_name
+        assert first.collection.count() == second.collection.count() == 1
+    finally:
+        first.close()
+        second.close()

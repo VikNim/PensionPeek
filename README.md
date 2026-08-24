@@ -16,10 +16,11 @@ Model Serving can be used for the chat and embedding models.
 - PyMuPDF page-aware text extraction and Schedule H financial heuristics
 - Plotly asset, participant, income/expense, and reported asset-category charts with independent
   zoom and reset controls
-- A per-filing in-memory Chroma collection and a LangGraph `retrieve → answer` flow
+- An isolated per-engine in-memory Chroma collection and a LangGraph `retrieve → answer` flow
 - Databricks Model Serving with `databricks-claude-haiku-4-5` and
   `databricks-qwen3-embedding-0-6b`
-- Swappable OpenAI or Anthropic chat models; OpenAI or local sentence-transformer embeddings
+- Model configuration supplied by the deployment rather than requested from end users
+- A fixed-height, auto-scrolling Q&A panel with an always-visible inline chat input
 - Page citations and supporting retrieved excerpts with every chat answer
 - Plain-language definitions and prominent aggregate-data disclaimers
 
@@ -86,26 +87,14 @@ databricks auth login \
 `DATABRICKS_CONFIG_PROFILE` is also recognized. If your organization permits PATs, setting the
 optional `DATABRICKS_FM_TOKEN` takes precedence over the OAuth profile.
 
-OpenAI and Anthropic remain available as alternatives:
-
-```bash
-export OPENAI_API_KEY="..."
-# or
-export ANTHROPIC_API_KEY="..."
-```
-
 You can instead copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`. The populated
-file is ignored by Git. Never put a Databricks token in source code. Model names can also be
-overridden with `OPENAI_MODEL` and `ANTHROPIC_MODEL`.
+file is ignored by Git. Never put a Databricks token in source code. These settings are intentionally
+not exposed as end-user controls in the Ask tab.
 
 The Databricks adapter uses the workspace's OpenAI-compatible serving routes. Filing chunks are
 embedded without an instruction; Qwen question embeddings receive a retrieval-specific instruction
 as recommended for that model. Both chunks and retrieved excerpts are sent to the configured
 Databricks workspace.
-
-With Anthropic, PensionPeek uses local `all-MiniLM-L6-v2` embeddings because Anthropic does not
-provide the embedding adapter used here. The model downloads on first use. With OpenAI, the UI lets
-you choose `text-embedding-3-small` or the same local embedding model.
 
 ## Verify
 
@@ -135,10 +124,10 @@ EFAST2 search API
                                                    answer + page citations
 ```
 
-The Chroma client is `EphemeralClient`; it is local and session-scoped, not hosted or shared.
-Databricks or OpenAI embeddings transmit extracted filing chunks to the selected provider. Local
-embeddings keep embedding input on the app machine. In every configuration, the retrieved excerpts
-needed to answer a question are sent to the selected answering provider.
+The Chroma client is `EphemeralClient`; each RAG engine receives an isolated collection that is
+released when the filing changes. It is local and session-scoped, not hosted or shared. Databricks
+embeddings transmit extracted filing chunks to the configured workspace, and the retrieved excerpts
+needed to answer a question are sent to its configured answering model.
 
 ## Known limitations
 

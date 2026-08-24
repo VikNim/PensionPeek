@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
@@ -10,6 +11,7 @@ from pensionpeek.models import TextChunk
 
 Provider = Literal["Databricks", "OpenAI", "Anthropic"]
 EmbeddingBackend = Literal["Databricks", "OpenAI", "Local"]
+RAG_ENGINE_API_VERSION = 3
 
 DATABRICKS_QUERY_INSTRUCTION = (
     "Given a question about a Form 5500 filing, retrieve relevant filing passages that answer "
@@ -225,6 +227,7 @@ class RagEngine:
             raise RagError(f"Enter an API key for {provider}.")
         self.provider = provider
         self.model_name = model_name
+        self.api_version = RAG_ENGINE_API_VERSION
 
         databricks_credential: str | Callable[[], str] = api_key
         if provider == "Databricks" and not api_key:
@@ -285,14 +288,18 @@ class RagEngine:
         except (ImportError, ValueError) as exc:  # pragma: no cover
             raise RagError(f"Could not configure the {provider} model wrapper: {exc}") from exc
 
-        client = chromadb.EphemeralClient(
-            settings=Settings(anonymized_telemetry=False, is_persistent=False)
-        )
-        collection_name = "pp_" + hashlib.sha256(filing_key.encode("utf-8")).hexdigest()[:24]
-        self.collection = client.create_collection(
-            collection_name,
-            metadata={"hnsw:space": "cosine", "filing_key": filing_key[:200]},
-        )
+        try:
+            client = chromadb.EphemeralClient(
+                settings=Settings(anonymized_telemetry=False, is_persistent=False)
+            )
+            self._client = client
+            self._collection_name = _collection_name(filing_key)
+            self.collection = client.create_collection(
+                self._collection_name,
+                metadata={"hnsw:space": "cosine", "filing_key": filing_key[:200]},
+            )
+        except Exception as exc:
+            raise RagError(f"Could not initialize the ephemeral filing index: {exc}") from exc
         documents = [chunk.text for chunk in chunks]
         try:
             vectors = self.embeddings.embed_documents(documents)
@@ -303,6 +310,7 @@ class RagEngine:
                 metadatas=[{"page": chunk.page, "chunk_id": chunk.chunk_id} for chunk in chunks],
             )
         except Exception as exc:
+            self.close()
             raise RagError(f"Could not create the filing index: {exc}") from exc
 
         graph = StateGraph(RagState)
@@ -312,6 +320,13 @@ class RagEngine:
         graph.add_edge("retrieve", "answer")
         graph.add_edge("answer", END)
         self.graph = graph.compile()
+
+    def close(self) -> None:
+        """Release this engine's ephemeral Chroma collection."""
+        try:
+            self._client.delete_collection(self._collection_name)
+        except Exception:
+            pass
 
     def _retrieve(self, state: RagState) -> dict[str, Any]:
         try:
@@ -396,3 +411,8 @@ Write a concise, grounded answer with page citations."""
             raise RagError("Enter a question about the filing.")
         result = self.graph.invoke({"query": cleaned, "conversation": conversation or []})
         return RagAnswer(text=result["answer"], citations=result.get("citations", []))
+
+
+def _collection_name(filing_key: str) -> str:
+    filing_hash = hashlib.sha256(filing_key.encode("utf-8")).hexdigest()[:20]
+    return f"pp_{filing_hash}_{uuid.uuid4().hex[:12]}"
