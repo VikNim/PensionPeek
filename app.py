@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import html
+import importlib
+import inspect
 import os
 from typing import Any
 
 import streamlit as st
 
+import pensionpeek.rag as rag_module
 from pensionpeek.charts import (
     asset_categories_chart,
     assets_history_chart,
@@ -16,8 +19,16 @@ from pensionpeek.efast import EfastClient, EfastError
 from pensionpeek.glossary import TERMS
 from pensionpeek.models import Filing, ParsedFiling, RetrievedFiling
 from pensionpeek.parser import ParsingError, parse_pdf
-from pensionpeek.rag import RagEngine, RagError
 from pensionpeek.retrieval import RetrievalError, download_filing, resolve_filing_url
+
+# Streamlit can re-run app.py while retaining an older imported project module. Refresh only when
+# that cached constructor predates the Databricks integration, avoiding a server-restart-only fix.
+if "databricks_base_url" not in inspect.signature(rag_module.RagEngine.__init__).parameters:
+    importlib.invalidate_caches()
+    rag_module = importlib.reload(rag_module)
+
+RagEngine = rag_module.RagEngine
+RagError = rag_module.RagError
 
 st.set_page_config(
     page_title="PensionPeek · Form 5500 explorer",
@@ -531,7 +542,10 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
         st.info("Load a readable filing PDF before building the question-answering index.")
         return
 
-    with st.expander("AI and embedding setup", expanded=st.session_state.rag_engine is None):
+    with st.popover(
+        "Model settings",
+        help="Optional provider, model, and credential overrides for filing Q&A.",
+    ):
         provider = st.selectbox("Answering model provider", ["Databricks", "OpenAI", "Anthropic"])
         databricks_base_url = ""
         embedding_model = "text-embedding-3-small"
@@ -604,36 +618,55 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
                 ),
             )
         st.caption(privacy_note)
-        if st.button("Build or refresh filing index", type="primary", width="stretch"):
-            fingerprint = (
-                filing.key,
-                provider,
-                model_name,
-                embedding_backend,
-                embedding_model,
-                databricks_base_url,
-            )
-            try:
-                with st.spinner("Chunking, embedding, and indexing this filing…"):
-                    st.session_state.rag_engine = RagEngine(
-                        filing_key=filing.key,
-                        chunks=parsed.chunks,
-                        provider=provider,
-                        api_key=api_key,
-                        model_name=model_name,
-                        embedding_backend=embedding_backend,
-                        embedding_model=embedding_model,
-                        databricks_base_url=databricks_base_url,
-                    )
-                    st.session_state.rag_fingerprint = fingerprint
-                    st.session_state.chat_messages = []
-                st.success(f"Indexed {len(parsed.chunks):,} page-aware filing excerpts.")
-            except RagError as exc:
-                st.error(str(exc))
+
+    credential_status = "credential ready" if api_key else "credential required"
+    status_column, action_column = st.columns([4, 1.4], vertical_alignment="center")
+    status_column.caption(
+        f"{provider} · {model_name} · {embedding_model} · {credential_status}. "
+        "Use Model settings only when you need to change these defaults."
+    )
+    prepare_index = action_column.button(
+        "Prepare filing Q&A",
+        type="primary",
+        width="stretch",
+        help="Create an ephemeral search index for only this filing.",
+    )
+    if prepare_index:
+        fingerprint = (
+            filing.key,
+            provider,
+            model_name,
+            embedding_backend,
+            embedding_model,
+            databricks_base_url,
+        )
+        try:
+            with st.spinner("Chunking, embedding, and indexing this filing…"):
+                st.session_state.rag_engine = RagEngine(
+                    filing_key=filing.key,
+                    chunks=parsed.chunks,
+                    provider=provider,
+                    api_key=api_key,
+                    model_name=model_name,
+                    embedding_backend=embedding_backend,
+                    embedding_model=embedding_model,
+                    databricks_base_url=databricks_base_url,
+                )
+                st.session_state.rag_fingerprint = fingerprint
+                st.session_state.chat_messages = []
+            st.success(f"Indexed {len(parsed.chunks):,} page-aware filing excerpts.")
+        except RagError as exc:
+            st.error(str(exc))
 
     engine: RagEngine | None = st.session_state.rag_engine
     if not engine:
-        st.info("Configure a provider and build the ephemeral filing index to begin.")
+        if api_key:
+            st.info("Select Prepare filing Q&A once to begin asking questions.")
+        else:
+            st.info(
+                "Add the Databricks token in Model settings or DATABRICKS_FM_TOKEN, then prepare "
+                "the filing Q&A index."
+            )
         return
 
     suggested = None
