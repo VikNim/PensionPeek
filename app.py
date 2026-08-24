@@ -633,13 +633,15 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
 
 def _build_databricks_rag_engine(filing: Filing, parsed: ParsedFiling) -> RagEngine:
     databricks_host = _secret("DATABRICKS_HOST")
-    default_base_url = (
-        f"{databricks_host.rstrip('/')}/serving-endpoints"
-        if databricks_host
-        else "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
-    )
-
-    base_url = _secret("DATABRICKS_FM_BASE_URL") or default_base_url
+    if databricks_host:
+        # Databricks Apps injects the authoritative workspace host. Prefer it over any
+        # stale local DATABRICKS_FM_BASE_URL value that may remain in workspace files.
+        base_url = rag_module.normalize_databricks_base_url(databricks_host)
+    else:
+        base_url = (
+            _secret("DATABRICKS_FM_BASE_URL")
+            or "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+        )
     model_name = _secret("LLM_MODEL") or "databricks-claude-haiku-4-5"
     embedding_model = (
         _secret("EMBEDDING_MODEL")
