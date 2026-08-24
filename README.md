@@ -69,10 +69,22 @@ models use these settings:
 
 ```bash
 export DATABRICKS_FM_BASE_URL="https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
-export DATABRICKS_FM_TOKEN="dapi-..."
+export DATABRICKS_PROFILE="dbc-7b106152-caf3"
 export EMBEDDING_MODEL="databricks-qwen3-embedding-0-6b"
 export LLM_MODEL="databricks-claude-haiku-4-5"
 ```
+
+PensionPeek uses the profile's refreshable OAuth session, so a personal access token is not
+required. Authenticate the profile once (and repeat when Databricks asks you to sign in again):
+
+```bash
+databricks auth login \
+  --host "https://dbc-7b106152-caf3.cloud.databricks.com" \
+  --profile "dbc-7b106152-caf3"
+```
+
+`DATABRICKS_CONFIG_PROFILE` is also recognized. If your organization permits PATs, setting the
+optional `DATABRICKS_FM_TOKEN` takes precedence over the OAuth profile.
 
 OpenAI and Anthropic remain available as alternatives:
 
@@ -83,7 +95,7 @@ export ANTHROPIC_API_KEY="..."
 ```
 
 You can instead copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`. The populated
-file is ignored by Git. Never put the Databricks token in source code. Model names can also be
+file is ignored by Git. Never put a Databricks token in source code. Model names can also be
 overridden with `OPENAI_MODEL` and `ANTHROPIC_MODEL`.
 
 The Databricks adapter uses the workspace's OpenAI-compatible serving routes. Filing chunks are

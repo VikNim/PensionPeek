@@ -8,6 +8,7 @@ from pensionpeek.rag import (
     DATABRICKS_QUERY_INSTRUCTION,
     RagError,
     _DatabricksEmbeddings,
+    _DatabricksOAuthToken,
     normalize_databricks_base_url,
 )
 
@@ -67,3 +68,49 @@ def test_databricks_embeddings_batch_documents_and_instruct_query() -> None:
     assert query == [0.0, 1.0]
     assert "extra_body" not in resource.calls[0]
     assert resource.calls[-1]["extra_body"] == {"instruction": DATABRICKS_QUERY_INSTRUCTION}
+
+
+def test_databricks_oauth_profile_returns_bearer_token() -> None:
+    config = SimpleNamespace(
+        host="https://dbc-example.cloud.databricks.com",
+        authenticate=lambda: {"Authorization": "Bearer oauth-access-token"},
+    )
+    credential = _DatabricksOAuthToken(
+        base_url="https://dbc-example.cloud.databricks.com/serving-endpoints",
+        profile="development",
+        workspace_client=SimpleNamespace(config=config),
+    )
+
+    assert credential() == "oauth-access-token"
+
+
+def test_databricks_oauth_profile_must_match_serving_host() -> None:
+    workspace_client = SimpleNamespace(
+        config=SimpleNamespace(host="https://different.cloud.databricks.com")
+    )
+
+    with pytest.raises(RagError, match="model-serving URL"):
+        _DatabricksOAuthToken(
+            base_url="https://dbc-example.cloud.databricks.com/serving-endpoints",
+            profile="wrong-workspace",
+            workspace_client=workspace_client,
+        )
+
+
+def test_databricks_oauth_failure_is_actionable_and_sanitized() -> None:
+    def fail_authentication() -> dict[str, str]:
+        raise RuntimeError("internal credential details")
+
+    config = SimpleNamespace(
+        host="https://dbc-example.cloud.databricks.com",
+        authenticate=fail_authentication,
+    )
+    credential = _DatabricksOAuthToken(
+        base_url="https://dbc-example.cloud.databricks.com/serving-endpoints",
+        profile="development",
+        workspace_client=SimpleNamespace(config=config),
+    )
+
+    with pytest.raises(RagError, match="databricks auth login") as error:
+        credential()
+    assert "internal credential details" not in str(error.value)

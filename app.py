@@ -22,8 +22,11 @@ from pensionpeek.parser import ParsingError, parse_pdf
 from pensionpeek.retrieval import RetrievalError, download_filing, resolve_filing_url
 
 # Streamlit can re-run app.py while retaining an older imported project module. Refresh only when
-# that cached constructor predates the Databricks integration, avoiding a server-restart-only fix.
-if "databricks_base_url" not in inspect.signature(rag_module.RagEngine.__init__).parameters:
+# that cached constructor predates the current Databricks integration.
+_required_rag_parameters = {"databricks_base_url", "databricks_profile"}
+if not _required_rag_parameters.issubset(
+    inspect.signature(rag_module.RagEngine.__init__).parameters
+):
     importlib.invalidate_caches()
     rag_module = importlib.reload(rag_module)
 
@@ -548,6 +551,7 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
     ):
         provider = st.selectbox("Answering model provider", ["Databricks", "OpenAI", "Anthropic"])
         databricks_base_url = ""
+        databricks_profile = ""
         embedding_model = "text-embedding-3-small"
         if provider == "Databricks":
             databricks_base_url = st.text_input(
@@ -570,8 +574,21 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
                     value=(_secret("EMBEDDING_MODEL") or "databricks-qwen3-embedding-0-6b"),
                 )
             env_key = _secret("DATABRICKS_FM_TOKEN")
+            databricks_profile = (
+                _secret("DATABRICKS_PROFILE")
+                or _secret("DATABRICKS_CONFIG_PROFILE")
+                or "dbc-7b106152-caf3"
+            )
+            databricks_profile = st.text_input(
+                "Databricks OAuth profile",
+                value=databricks_profile,
+                help=(
+                    "Used when no PAT is supplied. Create or refresh it with `databricks auth "
+                    "login --profile PROFILE`."
+                ),
+            )
             embedding_backend = "Databricks"
-            credential_name = "Databricks token"
+            credential_name = "Optional Databricks PAT"
             privacy_note = (
                 "Filing chunks and retrieved excerpts are sent to your Databricks workspace. "
                 "Qwen document embeddings use no instruction; question embeddings use a "
@@ -609,6 +626,12 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
         if env_key:
             st.caption(f"✓ {credential_name} loaded from environment or Streamlit secrets.")
             api_key = env_key
+        elif provider == "Databricks":
+            api_key = st.text_input(
+                credential_name,
+                type="password",
+                help="Leave empty to authenticate through the OAuth profile above.",
+            )
         else:
             api_key = st.text_input(
                 credential_name,
@@ -619,7 +642,12 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
             )
         st.caption(privacy_note)
 
-    credential_status = "credential ready" if api_key else "credential required"
+    if provider == "Databricks":
+        credential_status = (
+            "PAT ready" if api_key else f"OAuth profile {databricks_profile or 'required'}"
+        )
+    else:
+        credential_status = "credential ready" if api_key else "credential required"
     status_column, action_column = st.columns([4, 1.4], vertical_alignment="center")
     status_column.caption(
         f"{provider} · {model_name} · {embedding_model} · {credential_status}. "
@@ -639,6 +667,7 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
             embedding_backend,
             embedding_model,
             databricks_base_url,
+            databricks_profile,
         )
         try:
             with st.spinner("Chunking, embedding, and indexing this filing…"):
@@ -651,6 +680,7 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
                     embedding_backend=embedding_backend,
                     embedding_model=embedding_model,
                     databricks_base_url=databricks_base_url,
+                    databricks_profile=databricks_profile,
                 )
                 st.session_state.rag_fingerprint = fingerprint
                 st.session_state.chat_messages = []
@@ -660,11 +690,11 @@ def _render_chat(filing: Filing, parsed: ParsedFiling | None) -> None:
 
     engine: RagEngine | None = st.session_state.rag_engine
     if not engine:
-        if api_key:
+        if api_key or (provider == "Databricks" and databricks_profile):
             st.info("Select Prepare filing Q&A once to begin asking questions.")
         else:
             st.info(
-                "Add the Databricks token in Model settings or DATABRICKS_FM_TOKEN, then prepare "
+                "Add a Databricks OAuth profile or optional PAT in Model settings, then prepare "
                 "the filing Q&A index."
             )
         return

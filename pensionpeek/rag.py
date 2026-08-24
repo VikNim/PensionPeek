@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 from urllib.parse import urlparse
@@ -86,7 +87,7 @@ class _DatabricksEmbeddings:
     def __init__(
         self,
         *,
-        api_key: str,
+        api_key: str | Callable[[], str],
         base_url: str,
         model_name: str,
         batch_size: int = 128,
@@ -126,6 +127,66 @@ class _DatabricksEmbeddings:
         return self._vectors(response)[0]
 
 
+class _DatabricksOAuthToken:
+    """Refreshable API-key callback backed by a Databricks CLI OAuth profile."""
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        profile: str,
+        workspace_client: Any | None = None,
+    ) -> None:
+        cleaned_profile = profile.strip()
+        if not cleaned_profile:
+            raise RagError(
+                "Set DATABRICKS_PROFILE to a profile created by `databricks auth login`, or "
+                "provide DATABRICKS_FM_TOKEN."
+            )
+        if workspace_client is None:
+            try:
+                from databricks.sdk import WorkspaceClient
+            except ImportError as exc:  # pragma: no cover - incomplete environment only
+                raise RagError(
+                    "OAuth profile authentication requires databricks-sdk. Install the project "
+                    "dependencies first."
+                ) from exc
+            try:
+                workspace_client = WorkspaceClient(profile=cleaned_profile)
+            except Exception as exc:
+                raise RagError(
+                    f"Databricks OAuth profile {cleaned_profile!r} is unavailable or expired. "
+                    f"Run `databricks auth login --profile {cleaned_profile}` and try again."
+                ) from exc
+
+        serving_host = (urlparse(normalize_databricks_base_url(base_url)).hostname or "").lower()
+        profile_url = str(getattr(workspace_client.config, "host", "") or "")
+        profile_host = (urlparse(profile_url).hostname or "").lower()
+        if not profile_host or profile_host != serving_host:
+            raise RagError(
+                f"Databricks profile {cleaned_profile!r} targets {profile_host or 'no host'}, but "
+                f"the model-serving URL targets {serving_host}."
+            )
+        self.profile = cleaned_profile
+        self.workspace_client = workspace_client
+
+    def __call__(self) -> str:
+        try:
+            headers = self.workspace_client.config.authenticate()
+        except Exception as exc:
+            raise RagError(
+                f"Databricks OAuth profile {self.profile!r} is unavailable or expired. Run "
+                f"`databricks auth login --profile {self.profile}` and try again."
+            ) from exc
+        authorization = str(headers.get("Authorization", ""))
+        scheme, separator, token = authorization.partition(" ")
+        if not separator or scheme.lower() != "bearer" or not token.strip():
+            raise RagError(
+                f"Databricks OAuth profile {self.profile!r} did not return a bearer token."
+            )
+        return token.strip()
+
+
 def _message_text(message: Any) -> str:
     content = getattr(message, "content", message)
     if isinstance(content, str):
@@ -156,14 +217,21 @@ class RagEngine:
         embedding_model: str = "text-embedding-3-small",
         local_embedding_model: str = "all-MiniLM-L6-v2",
         databricks_base_url: str = "",
+        databricks_profile: str = "",
     ) -> None:
         if not chunks:
             raise RagError("There is no extracted filing text to index.")
-        if not api_key:
-            credential = "API token" if provider == "Databricks" else "API key"
-            raise RagError(f"Enter an {credential} for {provider}.")
+        if not api_key and provider != "Databricks":
+            raise RagError(f"Enter an API key for {provider}.")
         self.provider = provider
         self.model_name = model_name
+
+        databricks_credential: str | Callable[[], str] = api_key
+        if provider == "Databricks" and not api_key:
+            databricks_credential = _DatabricksOAuthToken(
+                base_url=databricks_base_url,
+                profile=databricks_profile,
+            )
 
         try:
             import chromadb
@@ -178,7 +246,7 @@ class RagEngine:
             if provider != "Databricks":
                 raise RagError("Databricks embeddings require the Databricks provider and token.")
             self.embeddings = _DatabricksEmbeddings(
-                api_key=api_key,
+                api_key=databricks_credential,
                 base_url=databricks_base_url,
                 model_name=embedding_model,
             )
@@ -204,6 +272,7 @@ class RagEngine:
                 if provider == "Databricks":
                     chat_kwargs.update(
                         {
+                            "api_key": databricks_credential,
                             "base_url": normalize_databricks_base_url(databricks_base_url),
                             "max_tokens": 1_400,
                         }
