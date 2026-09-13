@@ -265,6 +265,32 @@ def _message_text(message: Any) -> str:
     return str(content)
 
 
+def build_databricks_chat_model(settings: dict[str, str], *, max_tokens: int = 1_400) -> Any:
+    """Build a Databricks-backed ChatOpenAI model from `resolve_databricks_settings` output.
+
+    Self-contained (not shared with RagEngine's own multi-provider constructor, which also
+    wires up embeddings and a Chroma collection) so other Databricks-only callers -- such as
+    an extraction task that just needs a chat model -- don't have to duplicate the OAuth vs.
+    API-key credential branching.
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError as exc:  # pragma: no cover - incomplete environment only
+        raise RagError("langchain-openai is not installed.") from exc
+
+    credential: str | Callable[[], str] = settings["api_key"]
+    if not settings["api_key"]:
+        credential = _DatabricksOAuthToken(
+            base_url=settings["base_url"], profile=settings["profile"]
+        )
+    return ChatOpenAI(
+        model=settings["model_name"],
+        api_key=credential,
+        base_url=normalize_databricks_base_url(settings["base_url"]),
+        max_tokens=max_tokens,
+    )
+
+
 class RagEngine:
     """A single-filing, in-memory Chroma index orchestrated by LangGraph."""
 
