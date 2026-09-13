@@ -1,4 +1,4 @@
-"""PensionPeek MCP server.
+"""PlanPeek MCP server.
 
 Exposes Form 5500 search, retrieval, and grounded Q&A as MCP tools so any MCP client
 (Claude Desktop, Claude Code, etc.) can look up and ask questions about public DOL
@@ -12,7 +12,7 @@ This process caches parsed filings and RAG engines in memory for its lifetime (o
 server process per client session, launched over stdio), mirroring how the Streamlit
 app scopes state to a browser session. A bounded cache keeps memory use predictable.
 
-Run:  uv run python -m pensionpeek.mcp_server
+Run:  uv run python -m planpeek.mcp_server
 """
 
 from __future__ import annotations
@@ -21,16 +21,16 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-from pensionpeek.efast import EfastClient, EfastError
-from pensionpeek.glossary import TERMS
-from pensionpeek.models import Filing, ParsedFiling, RetrievedFiling
-from pensionpeek.parser import ParsingError, parse_pdf
-from pensionpeek.rag import RagEngine, RagError, resolve_databricks_settings
-from pensionpeek.retrieval import RetrievalError, download_filing
+from planpeek.efast import EfastClient, EfastError
+from planpeek.glossary import TERMS
+from planpeek.models import Filing, ParsedFiling, RetrievedFiling
+from planpeek.parser import ParsingError, parse_pdf
+from planpeek.rag import RagEngine, RagError, resolve_databricks_settings
+from planpeek.retrieval import RetrievalError, download_filing
 
 MAX_CACHED_FILINGS = 10
 
-mcp = FastMCP("PensionPeek")
+mcp = FastMCP("PlanPeek")
 
 _efast = EfastClient()
 
@@ -260,7 +260,7 @@ def ask_filing(filing_id: str, question: str) -> str:
 
 @mcp.resource("config://glossary")
 def glossary_index() -> str:
-    """Static resource: every plain-language term PensionPeek defines."""
+    """Static resource: every plain-language term PlanPeek defines."""
     return "\n".join(f"{term}: {definition}" for term, definition in TERMS.items())
 
 

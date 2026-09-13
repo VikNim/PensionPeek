@@ -1,6 +1,6 @@
 """SEC EDGAR document retrieval for VUL filings.
 
-Mirrors pensionpeek.retrieval's shape (resolve -> validate host -> download, size-capped)
+Mirrors planpeek.retrieval's shape (resolve -> validate host -> download, size-capped)
 for SEC's document archive instead of DOL's S3 bucket.
 """
 
@@ -10,8 +10,8 @@ from urllib.parse import urlparse
 
 import requests
 
-from pensionpeek.edgar import edgar_user_agent
-from pensionpeek.models import RetrievedVulDocument, VulFiling
+from planpeek.edgar import edgar_user_agent
+from planpeek.models import RetrievedVulDocument, VulFiling
 
 ARCHIVE_BASE = "https://www.sec.gov/Archives/edgar/data"
 MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024

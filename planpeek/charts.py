@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import plotly.graph_objects as go
 
-from pensionpeek.models import Filing, FilingMetrics
+from planpeek.models import Filing, FilingMetrics
 
 NAVY = "#17324D"
 TEAL = "#0D7C7B"

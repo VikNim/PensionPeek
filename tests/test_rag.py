@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from pensionpeek.models import TextChunk
-from pensionpeek.rag import (
+from planpeek.models import TextChunk
+from planpeek.rag import (
     DATABRICKS_QUERY_INSTRUCTION,
     RagEngine,
     RagError,

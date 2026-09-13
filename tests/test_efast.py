@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from pensionpeek.efast import build_query, normalize_ein
-from pensionpeek.models import Filing
+from planpeek.efast import build_query, normalize_ein
+from planpeek.models import Filing
 
 
 def test_normalize_ein_accepts_display_format() -> None:

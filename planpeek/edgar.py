@@ -1,6 +1,6 @@
 """SEC EDGAR search client for Variable Universal Life (VUL) separate-account filings.
 
-Mirrors pensionpeek.efast's shape (search / history over one HTTP client) for a second,
+Mirrors planpeek.efast's shape (search / history over one HTTP client) for a second,
 unrelated public filing source: SEC EDGAR's free full-text search API and per-company
 submissions index, scoped to Form N-6 / N-6/A -- the filing type used by insurance
 company separate accounts that offer variable life insurance policies.
@@ -20,12 +20,12 @@ from typing import Any
 
 import requests
 
-from pensionpeek.models import VulFiling
+from planpeek.models import VulFiling
 
 FULL_TEXT_SEARCH_URL = "https://efts.sec.gov/LATEST/search-index"
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 DEFAULT_TIMEOUT = (5, 25)
-DEFAULT_USER_AGENT = "PensionPeek research-tool (set EDGAR_USER_AGENT to a real contact)"
+DEFAULT_USER_AGENT = "PlanPeek research-tool (set EDGAR_USER_AGENT to a real contact)"
 VUL_FORM_TYPE = "N-6"
 
 

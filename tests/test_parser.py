@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pensionpeek.parser import chunk_pages, extract_metrics_from_text
+from planpeek.parser import chunk_pages, extract_metrics_from_text
 
 SAMPLE_TEXT = """
 Form 5500 Annual Return/Report

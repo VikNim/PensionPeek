@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from pensionpeek.models import VulFiling
-from pensionpeek.vul_parser import (
+from planpeek.models import VulFiling
+from planpeek.vul_parser import (
     VulParsingError,
     _extract_tables,
     _is_fund_menu_shaped,

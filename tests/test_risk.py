@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pensionpeek.risk import classify_amounts, classify_label, summarize
+from planpeek.risk import classify_amounts, classify_label, summarize
 
 # Real fund names from a live Google LLC 401(k) Savings Plan Schedule of Assets, used to
 # validate the keyword classifier against actual holdings rather than idealized names.

@@ -7,8 +7,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
-from pensionpeek.efast import USER_AGENT
-from pensionpeek.models import Filing, RetrievedFiling
+from planpeek.efast import USER_AGENT
+from planpeek.models import Filing, RetrievedFiling
 
 CURRENT_FILING_BASE = "https://efast2-filings-public.s3.amazonaws.com/prd/"
 MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024
@@ -116,5 +116,5 @@ def download_filing(
         return RetrievedFiling(pdf_bytes, filename, url, was_archive=True)
 
     raise RetrievalError(
-        "DOL returned a web page instead of the filing, so PensionPeek could not parse it."
+        "DOL returned a web page instead of the filing, so PlanPeek could not parse it."
     )

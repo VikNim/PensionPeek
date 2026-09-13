@@ -65,6 +65,6 @@ TERMS: dict[str, str] = {
     ),
     "EFAST2": (
         "The Department of Labor's electronic Form 5500 filing and public-disclosure system used "
-        "as PensionPeek's filing source."
+        "as PlanPeek's filing source."
     ),
 }

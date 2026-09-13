@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pensionpeek.context import contains_mask_artifact, sanitize_filing_context
+from planpeek.context import contains_mask_artifact, sanitize_filing_context
 
 
 def test_removes_known_text_masks_and_empty_numeric_sentinels() -> None:

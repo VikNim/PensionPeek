@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from pensionpeek.retrieval import RetrievalError, _pdf_from_archive, resolve_filing_url
+from planpeek.retrieval import RetrievalError, _pdf_from_archive, resolve_filing_url
 
 
 def test_resolves_current_public_s3_path() -> None:

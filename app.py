@@ -7,8 +7,8 @@ from typing import Any
 
 import streamlit as st
 
-import pensionpeek.rag as rag_module
-from pensionpeek.charts import (
+import planpeek.rag as rag_module
+from planpeek.charts import (
     asset_categories_chart,
     assets_history_chart,
     balance_sheet_chart,
@@ -16,11 +16,11 @@ from pensionpeek.charts import (
     net_asset_reconciliation_chart,
     participants_history_chart,
 )
-from pensionpeek.efast import EfastClient, EfastError
-from pensionpeek.glossary import TERMS
-from pensionpeek.models import Filing, ParsedFiling, RetrievedFiling
-from pensionpeek.parser import ParsingError, parse_pdf
-from pensionpeek.retrieval import RetrievalError, download_filing, resolve_filing_url
+from planpeek.efast import EfastClient, EfastError
+from planpeek.glossary import TERMS
+from planpeek.models import Filing, ParsedFiling, RetrievedFiling
+from planpeek.parser import ParsingError, parse_pdf
+from planpeek.retrieval import RetrievalError, download_filing, resolve_filing_url
 
 # Streamlit can re-run app.py while retaining an older imported project module. Refresh only when
 # the cached RAG implementation predates the current API and collection-lifecycle behavior.
@@ -32,7 +32,7 @@ RagEngine = rag_module.RagEngine
 RagError = rag_module.RagError
 
 st.set_page_config(
-    page_title="PensionPeek · Form 5500 explorer",
+    page_title="PlanPeek · Form 5500 explorer",
     page_icon="◉",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -242,7 +242,7 @@ def _render_header() -> None:
         <div class="pp-hero">
           <div>
             <div class="pp-kicker">Public retirement-plan filings, made legible</div>
-            <h1>PensionPeek <span class="pp-badge">Live DOL data</span></h1>
+            <h1>PlanPeek <span class="pp-badge">Live DOL data</span></h1>
           </div>
           <p>Find a U.S. Form 5500, compare plan-level assets and participants, inspect Schedule H,
           and ask grounded questions with page citations.</p>
@@ -730,7 +730,7 @@ def _render_source(
 
 def _render_glossary() -> None:
     st.markdown("#### Plain-language glossary")
-    st.caption("Definitions used throughout PensionPeek. These describe plan-level filing fields.")
+    st.caption("Definitions used throughout PlanPeek. These describe plan-level filing fields.")
     columns = st.columns(2, gap="medium")
     for index, (term, definition) in enumerate(TERMS.items()):
         with columns[index % 2]:
@@ -764,7 +764,7 @@ def main() -> None:
             "**3 · Ask**\n\nBuild a one-filing index and get grounded answers with page citations."
         )
         st.caption(
-            "PensionPeek stores no accounts, searches, plan database, or shared vector index. "
+            "PlanPeek stores no accounts, searches, plan database, or shared vector index. "
             "Its Chroma collection exists only in the current app session."
         )
         return

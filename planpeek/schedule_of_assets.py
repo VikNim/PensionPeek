@@ -7,7 +7,7 @@ H's own asset_categories are grouped by investment *vehicle* type (common/collec
 trust, registered investment company, ...), not by asset class, so a plan whose assets
 sit mostly in pooled funds is otherwise unclassifiable as equity/bond/cash. When this
 schedule is present, real fund names (validated against a live Google LLC 401(k) filing:
-"Vanguard 500 Index Fund", "MetWest Total Return Bond Fund", ...) give pensionpeek.risk
+"Vanguard 500 Index Fund", "MetWest Total Return Bond Fund", ...) give planpeek.risk
 something to actually classify.
 
 Not every filing includes this schedule -- plans invested entirely through a single
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 
-from pensionpeek.models import AssetHolding
+from planpeek.models import AssetHolding
 
 _SECTION_HEADER = re.compile(
     r"schedule\s+h,?\s+line\s+4i\s*[-–]\s*schedule\s+of\s+assets", re.IGNORECASE

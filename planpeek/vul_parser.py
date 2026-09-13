@@ -5,7 +5,7 @@ across filers -- each filing agent produces its own deeply nested, presentation-
 table structure (verified against a real, current Lincoln National N-6: fund names and
 expense ratios sit in separate <td> cells buried under several layers of styling <div>s,
 with no consistent class names or line-item codes to regex against). A heuristic parser
-like pensionpeek.parser is not viable here, so this module:
+like planpeek.parser is not viable here, so this module:
 
 1. walks every <table> in the document with a small, dependency-free HTML table extractor,
 2. keeps only the tables that look like a fund/allocation menu (percentage-dense, multi-row)
@@ -23,14 +23,14 @@ import re
 from html.parser import HTMLParser
 from typing import Any
 
-from pensionpeek.models import (
+from planpeek.models import (
     AllocationCategory,
     SubFund,
     VulExtraction,
     VulFiling,
     VulRiskMetrics,
 )
-from pensionpeek.rag import build_databricks_chat_model, resolve_databricks_settings
+from planpeek.rag import build_databricks_chat_model, resolve_databricks_settings
 
 MAX_TABLE_TEXT_CHARS = 40_000
 MIN_ROWS_TO_CONSIDER = 4
@@ -239,7 +239,7 @@ def _extraction_from_payload(payload: dict[str, Any]) -> VulExtraction:
 def extract_vul_filing(html: str, filing: VulFiling, *, llm: Any | None = None) -> VulExtraction:
     """Extract structured investment data from one VUL filing's HTML document.
 
-    Requires the same Databricks environment variables as pensionpeek.rag (see README):
+    Requires the same Databricks environment variables as planpeek.rag (see README):
     DATABRICKS_FM_BASE_URL, DATABRICKS_PROFILE, LLM_MODEL, and either an OAuth profile
     session or DATABRICKS_FM_TOKEN. Pass `llm` directly (e.g. in tests) to bypass that.
     """

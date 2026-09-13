@@ -4,12 +4,12 @@ import pytest
 
 pytest.importorskip("mcp", reason="mcp SDK not installed; run with --extra mcp to test the server")
 
-from pensionpeek import mcp_server as srv  # noqa: E402
-from pensionpeek.efast import EfastError  # noqa: E402
-from pensionpeek.models import Filing, FilingMetrics, ParsedFiling, RetrievedFiling  # noqa: E402
-from pensionpeek.parser import ParsingError  # noqa: E402
-from pensionpeek.rag import RagAnswer, RagError  # noqa: E402
-from pensionpeek.retrieval import RetrievalError  # noqa: E402
+from planpeek import mcp_server as srv  # noqa: E402
+from planpeek.efast import EfastError  # noqa: E402
+from planpeek.models import Filing, FilingMetrics, ParsedFiling, RetrievedFiling  # noqa: E402
+from planpeek.parser import ParsingError  # noqa: E402
+from planpeek.rag import RagAnswer, RagError  # noqa: E402
+from planpeek.retrieval import RetrievalError  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

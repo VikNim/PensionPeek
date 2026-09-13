@@ -5,11 +5,11 @@ from typing import Any
 
 import requests
 
-from pensionpeek.models import Filing
+from planpeek.models import Filing
 
 SEARCH_URL = "https://www.efast.dol.gov/services/afs"
 DEFAULT_TIMEOUT = (5, 25)
-USER_AGENT = "PensionPeek/0.1 (+public Form 5500 research tool)"
+USER_AGENT = "PlanPeek/0.1 (+public Form 5500 research tool)"
 
 
 class EfastError(RuntimeError):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pensionpeek.schedule_of_assets import extract_holdings
+from planpeek.schedule_of_assets import extract_holdings
 
 # A real Schedule H, Line 4i (Schedule of Assets) page, captured from a live Google LLC
 # 401(k) Savings Plan Form 5500 filing (filing_id 20250827123612NAL0005026227001, plan

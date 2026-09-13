@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from pensionpeek.charts import (
+from planpeek.charts import (
     asset_categories_chart,
     balance_sheet_chart,
     net_asset_reconciliation_chart,
 )
-from pensionpeek.models import FilingMetrics
+from planpeek.models import FilingMetrics
 
 
 def test_asset_category_chart_separates_legend_and_hides_tiny_labels() -> None:

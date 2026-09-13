@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import requests
 
-from pensionpeek.edgar import EdgarClient, EdgarError, _filing_from_search_hit, edgar_user_agent
+from planpeek.edgar import EdgarClient, EdgarError, _filing_from_search_hit, edgar_user_agent
 
 SEARCH_HIT = {
     "_id": "0000726865-26-000669:initialn6.htm",

@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 import requests
 
-from pensionpeek.models import VulFiling
-from pensionpeek.vul_retrieval import (
+from planpeek.models import VulFiling
+from planpeek.vul_retrieval import (
     VulRetrievalError,
     download_vul_document,
     resolve_document_url,

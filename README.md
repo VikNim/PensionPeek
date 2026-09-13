@@ -1,6 +1,6 @@
-# PensionPeek
+# PlanPeek
 
-PensionPeek is a Streamlit application for finding public U.S. Form 5500 filings, reading the
+PlanPeek is a Streamlit application for finding public U.S. Form 5500 filings, reading the
 actual filing PDF, charting reported plan-level figures, and asking grounded follow-up questions
 through a session-scoped RAG pipeline.
 
@@ -37,7 +37,7 @@ https://efast2-filings-public.s3.amazonaws.com/prd
 
 The UI's download handler opens that base plus the search API's `pdfpath`. A live sample returned
 an actual `%PDF-1.7` document even though its content type was `application/octet-stream`. This
-differs from older DOL help language describing a ZIP download. PensionPeek therefore:
+differs from older DOL help language describing a ZIP download. PlanPeek therefore:
 
 1. tries the current DOL-owned S3 path;
 2. identifies content by file signature rather than HTTP content type;
@@ -77,7 +77,7 @@ export EMBEDDING_MODEL="databricks-qwen3-embedding-0-6b"
 export LLM_MODEL="databricks-claude-haiku-4-5"
 ```
 
-PensionPeek uses the profile's refreshable OAuth session, so a personal access token is not
+PlanPeek uses the profile's refreshable OAuth session, so a personal access token is not
 required. Authenticate the profile once (and repeat when Databricks asks you to sign in again):
 
 ```bash
@@ -100,19 +100,19 @@ Databricks workspace.
 
 ## MCP server
 
-PensionPeek's search, retrieval, and Q&A capabilities are also exposed as an MCP server, so any
+PlanPeek's search, retrieval, and Q&A capabilities are also exposed as an MCP server, so any
 MCP client (Claude Code, Claude Desktop, etc.) can look up filings and ask questions about them
 directly — the same EFAST2 data and RAG pipeline as the Streamlit app, without the UI.
 
 ```bash
 uv sync --extra mcp
-uv run python -m pensionpeek.mcp_server
+uv run python -m planpeek.mcp_server
 ```
 
 Register it with Claude Code:
 
 ```bash
-claude mcp add pensionpeek -- uv run --directory "$(pwd)" python -m pensionpeek.mcp_server
+claude mcp add planpeek -- uv run --directory "$(pwd)" python -m planpeek.mcp_server
 ```
 
 Tools:
@@ -139,7 +139,7 @@ the 10 most recently used filings), the same session-scoped model the Streamlit 
 ```bash
 uv run pytest                       # add --extra mcp during `uv sync` to include MCP server tests
 uv run ruff check .
-python -m compileall app.py pensionpeek tests
+python -m compileall app.py planpeek tests
 ```
 
 ## Architecture
@@ -167,7 +167,7 @@ released when the filing changes. It is local and session-scoped, not hosted or 
 embeddings transmit extracted filing chunks to the configured workspace, and the retrieved excerpts
 needed to answer a question are sent to its configured answering model.
 
-`pensionpeek/mcp_server.py` is a second consumer of this same pipeline: it wraps `efast`,
+`planpeek/mcp_server.py` is a second consumer of this same pipeline: it wraps `efast`,
 `retrieval`, `parser`, and `rag` in four intent-shaped MCP tools instead of a Streamlit UI, so the
 search index, parsing heuristics, and RAG engine have exactly one implementation each.
 
@@ -179,7 +179,7 @@ search index, parsing heuristics, and RAG engine have exactly one implementation
 - EFAST does not publicly disclose every filing. Older, foreign, one-participant, superseded, or
   sensitive filings may be unavailable.
 - Search metadata exposes beginning-of-year participant counts broadly. End-of-year counts are
-  charted only when the selected PDF yields one; PensionPeek does not invent missing values.
+  charted only when the selected PDF yields one; PlanPeek does not invent missing values.
 - Reported asset categories are aggregate plan categories. They are never personal allocations.
 - Investment-by-investment detail depends on whether the filing has a public Schedule of Assets.
 - Unrecognized PDF extraction artifacts can still occur; verify material values on the source pages.
@@ -194,5 +194,5 @@ and contact information.
 - [EFAST2 search help](https://www.efast.dol.gov/5500Search/help/help.html)
 - [DOL Form 5500 datasets](https://www.dol.gov/agencies/ebsa/about-ebsa/our-activities/public-disclosure/foia/form-5500-datasets)
 
-PensionPeek is an independent research interface and is not affiliated with or endorsed by the
+PlanPeek is an independent research interface and is not affiliated with or endorsed by the
 U.S. Department of Labor. It does not provide legal, tax, investment, or fiduciary advice.

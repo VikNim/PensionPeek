@@ -1,8 +1,8 @@
 """Equity / fixed-income / cash classification and a risk-exposure summary.
 
 Shared by both plan types: Form 5500 Schedule of Assets holdings (401k, via
-pensionpeek.schedule_of_assets) and VUL sub-funds / allocation-chart entries (life
-insurance, via pensionpeek.vul_parser). Classification is name-based -- there is no
+planpeek.schedule_of_assets) and VUL sub-funds / allocation-chart entries (life
+insurance, via planpeek.vul_parser). Classification is name-based -- there is no
 ticker/CUSIP lookup anywhere in this pipeline -- so it only ever asserts what a
 holding's own name plausibly states, and reports whatever it can't confidently place
 as unclassified rather than guessing.

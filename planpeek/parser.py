@@ -4,9 +4,9 @@ import io
 import re
 from collections.abc import Iterable
 
-from pensionpeek.context import contains_mask_artifact, sanitize_filing_context
-from pensionpeek.models import FilingMetrics, ParsedFiling, TextChunk
-from pensionpeek.schedule_of_assets import extract_holdings
+from planpeek.context import contains_mask_artifact, sanitize_filing_context
+from planpeek.models import FilingMetrics, ParsedFiling, TextChunk
+from planpeek.schedule_of_assets import extract_holdings
 
 
 class ParsingError(RuntimeError):
