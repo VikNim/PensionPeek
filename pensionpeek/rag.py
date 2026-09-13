@@ -19,6 +19,30 @@ DATABRICKS_QUERY_INSTRUCTION = (
     "the question."
 )
 
+DEFAULT_DATABRICKS_BASE_URL = "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+DEFAULT_DATABRICKS_PROFILE = "dbc-7b106152-caf3"
+DEFAULT_LLM_MODEL = "databricks-claude-haiku-4-5"
+DEFAULT_EMBEDDING_MODEL = "databricks-qwen3-embedding-0-6b"
+
+
+def resolve_databricks_settings(lookup: Callable[[str], str]) -> dict[str, str]:
+    """Resolve Databricks model-serving settings from a key -> value lookup.
+
+    Shared by the Streamlit app (lookup backed by st.secrets + env vars) and the MCP server
+    (lookup backed by env vars only), so the default workspace identifiers live in one place.
+    """
+    return {
+        "base_url": lookup("DATABRICKS_FM_BASE_URL") or DEFAULT_DATABRICKS_BASE_URL,
+        "model_name": lookup("LLM_MODEL") or DEFAULT_LLM_MODEL,
+        "embedding_model": lookup("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL,
+        "profile": (
+            lookup("DATABRICKS_PROFILE")
+            or lookup("DATABRICKS_CONFIG_PROFILE")
+            or DEFAULT_DATABRICKS_PROFILE
+        ),
+        "api_key": lookup("DATABRICKS_FM_TOKEN"),
+    }
+
 
 class RagError(RuntimeError):
     """Raised when the local index or model request cannot be completed."""

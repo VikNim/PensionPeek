@@ -13,7 +13,39 @@ from pensionpeek.rag import (
     _DatabricksEmbeddings,
     _DatabricksOAuthToken,
     normalize_databricks_base_url,
+    resolve_databricks_settings,
 )
+
+
+def test_resolve_databricks_settings_falls_back_to_documented_defaults() -> None:
+    settings = resolve_databricks_settings(lambda key: "")
+    assert settings["base_url"] == "https://dbc-7b106152-caf3.cloud.databricks.com/serving-endpoints"
+    assert settings["profile"] == "dbc-7b106152-caf3"
+    assert settings["model_name"] == "databricks-claude-haiku-4-5"
+    assert settings["embedding_model"] == "databricks-qwen3-embedding-0-6b"
+    assert settings["api_key"] == ""
+
+
+def test_resolve_databricks_settings_prefers_provided_values() -> None:
+    values = {
+        "DATABRICKS_FM_BASE_URL": "https://example.cloud.databricks.com/serving-endpoints",
+        "LLM_MODEL": "custom-llm",
+        "EMBEDDING_MODEL": "custom-embed",
+        "DATABRICKS_PROFILE": "custom-profile",
+        "DATABRICKS_FM_TOKEN": "secret-token",
+    }
+    settings = resolve_databricks_settings(lambda key: values.get(key, ""))
+    assert settings["base_url"] == "https://example.cloud.databricks.com/serving-endpoints"
+    assert settings["model_name"] == "custom-llm"
+    assert settings["embedding_model"] == "custom-embed"
+    assert settings["profile"] == "custom-profile"
+    assert settings["api_key"] == "secret-token"
+
+
+def test_resolve_databricks_settings_falls_back_to_config_profile() -> None:
+    values = {"DATABRICKS_CONFIG_PROFILE": "legacy-profile"}
+    settings = resolve_databricks_settings(lambda key: values.get(key, ""))
+    assert settings["profile"] == "legacy-profile"
 
 
 class FakeEmbeddingsResource:

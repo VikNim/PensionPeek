@@ -24,6 +24,7 @@ Model Serving can be used for the chat and embedding models.
 - Page citations and supporting retrieved excerpts with every chat answer
 - Known EFAST mask and numeric-sentinel artifacts removed before embedding and answering
 - Plain-language definitions and prominent aggregate-data disclaimers
+- An MCP server exposing search, retrieval, and grounded Q&A to any MCP client
 
 ## Filing retrieval finding
 
@@ -97,10 +98,46 @@ embedded without an instruction; Qwen question embeddings receive a retrieval-sp
 as recommended for that model. Both chunks and retrieved excerpts are sent to the configured
 Databricks workspace.
 
+## MCP server
+
+PensionPeek's search, retrieval, and Q&A capabilities are also exposed as an MCP server, so any
+MCP client (Claude Code, Claude Desktop, etc.) can look up filings and ask questions about them
+directly — the same EFAST2 data and RAG pipeline as the Streamlit app, without the UI.
+
+```bash
+uv sync --extra mcp
+uv run python -m pensionpeek.mcp_server
+```
+
+Register it with Claude Code:
+
+```bash
+claude mcp add pensionpeek -- uv run --directory "$(pwd)" python -m pensionpeek.mcp_server
+```
+
+Tools:
+
+| Tool | Try asking |
+|---|---|
+| `search_filings(query, search_by)` | "Find Google's 401(k) Form 5500 filings" |
+| `get_filing_history(ein, plan_number)` | "Show the filing history for EIN 77-0493581 plan 001" |
+| `get_filing_financials(filing_id)` | "What are the Schedule H totals for that filing?" |
+| `ask_filing(filing_id, question)` | "Ask that filing what its reported asset categories are" |
+
+A filing is addressed by the short `filing_id` returned from `search_filings` or
+`get_filing_history` — a client never handles a PDF or a vector store directly. `ask_filing`
+requires the same Databricks credentials as the Streamlit app (see below); `search_filings`,
+`get_filing_history`, and `get_filing_financials` work without one. Two resources
+(`config://glossary` and the templated `docs://glossary/{term}`) expose the plain-language
+glossary for clients that want definitions rather than a tool call.
+
+The server process caches parsed filings and RAG engines in memory for its lifetime (bounded to
+the 10 most recently used filings), the same session-scoped model the Streamlit app uses.
+
 ## Verify
 
 ```bash
-uv run pytest
+uv run pytest                       # add --extra mcp during `uv sync` to include MCP server tests
 uv run ruff check .
 python -m compileall app.py pensionpeek tests
 ```
@@ -129,6 +166,10 @@ The Chroma client is `EphemeralClient`; each RAG engine receives an isolated col
 released when the filing changes. It is local and session-scoped, not hosted or shared. Databricks
 embeddings transmit extracted filing chunks to the configured workspace, and the retrieved excerpts
 needed to answer a question are sent to its configured answering model.
+
+`pensionpeek/mcp_server.py` is a second consumer of this same pipeline: it wraps `efast`,
+`retrieval`, `parser`, and `rag` in four intent-shaped MCP tools instead of a Streamlit UI, so the
+search index, parsing heuristics, and RAG engine have exactly one implementation each.
 
 ## Known limitations
 
