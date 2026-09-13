@@ -90,6 +90,20 @@ class TextChunk:
     text: str
 
 
+@dataclass(frozen=True, slots=True)
+class AssetHolding:
+    """One line item from a Form 5500 Schedule of Assets (Held at End of Year).
+
+    `identity` is the combined issuer + fund/investment description text as printed
+    (e.g. "The Vanguard Group, Inc. 500 Index Fund Institutional Select") -- the two
+    aren't split, because PDF text extraction gives no reliable delimiter between them
+    and classification only needs the combined text anyway.
+    """
+
+    identity: str
+    value: float
+
+
 @dataclass(slots=True)
 class FilingMetrics:
     assets_boy: float | None = None
@@ -103,6 +117,7 @@ class FilingMetrics:
     participants_boy: int | None = None
     participants_eoy: int | None = None
     asset_categories: dict[str, float] = field(default_factory=dict)
+    holdings: list[AssetHolding] = field(default_factory=list)
 
     @property
     def net_income(self) -> float | None:
