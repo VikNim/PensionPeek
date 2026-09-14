@@ -1,0 +1,30 @@
+label_text,expected_asset_class,source
+Nuveen Large Cap Responsible Equity Fund R6,equity,real:google_401k
+PIMCO Income Fund Institutional Class,fixed_income,real:google_401k
+The Vanguard Group Inc. 500 Index Fund Institutional Select,equity,real:google_401k
+The Vanguard Group Inc. Cash Reserves Federal MM Fund Admiral,cash,real:google_401k
+The Vanguard Group Inc. Emerging Markets Index Fund Institutional Plus,equity,real:google_401k
+The Vanguard Group Inc. Real Estate Index Fund Institutional,equity,real:google_401k
+The Vanguard Group Inc. Total International Bond Index Fund Institutional,fixed_income,real:google_401k
+The Vanguard Group Inc. Wellesley Income Fund Admiral,mixed,known_miss:classified_fixed_income
+The Vanguard Group Inc. Target Retirement Trust 2040,mixed,real:google_401k
+The Vanguard Group Inc. Target Retirement Trust 2020,mixed,real:google_401k
+The Vanguard Group Inc. Developed Markets Index Trust,equity,real:google_401k
+The Vanguard Group Inc. Institutional Extended Market Index Trust,equity,real:google_401k
+The Vanguard Group Inc. Institutional Total Bond Market Index Trust,fixed_income,real:google_401k
+The Vanguard Group Inc. Retirement Savings Trust II,unclassified,real:google_401k
+Fidelity Investments Diversified Commingled Pool Fund Class C,unclassified,real:google_401k
+EARNEST Partners Smid Cap Core Fund Founders Class,equity,real:google_401k
+Metropolitan West Funds MetWest Total Return Bond Fund (CIT),fixed_income,real:google_401k
+The Vanguard Group Inc. Parnassus US Large Cap,equity,real:google_401k
+Vanguard Brokerage Option Brokerage Accounts,other,real:google_401k
+Loans to participants,other,real:google_401k
+Fidelity VIP Contrafund,equity,known_miss:classified_unclassified
+PIMCO Total Return,fixed_income,real:lincoln_n6
+Vanguard Total Bond Market Index Fund,fixed_income,synthetic
+Federated Hermes Government Money Market Fund,cash,synthetic
+T. Rowe Price Balanced Fund,mixed,synthetic
+Self-Directed Brokerage Window,other,synthetic
+Diversified Stable Value Fund,cash,synthetic
+Vanguard Growth Index Fund,equity,synthetic
+Total Return Bond Fund,fixed_income,synthetic

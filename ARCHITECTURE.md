@@ -368,6 +368,63 @@ Run `uv run pytest` for the base suite; the MCP server tests require the optiona
 extra (`uv sync --extra dev --extra mcp`) and are skipped (not failed) without it via
 `pytest.importorskip`.
 
+## Evaluation harnesses (`planpeek/evals/`)
+
+Ordinary tests check that code behaves correctly; this subsystem checks that a
+**classifier or an LLM answer is any good** — a different question, ported from two
+Gen Academy "AI Evals" tutorials (routing-agent evaluation, and agentic-RAG evaluation
+with RAGAS). Nothing here is wired into `app.py` or `mcp_server.py`; these are
+standalone harnesses a developer runs deliberately, same status as the VUL pipeline.
+
+| Module | Ports the pattern from | Applies to |
+|---|---|---|
+| `evals/metrics.py` | `sklearn.metrics.classification_report` (hand-rolled, no new dependency) | shared |
+| `evals/risk_classifier_eval.py` | the routing-agent notebook's golden-dataset + precision/recall/F1 | `risk.classify_label()` |
+| `evals/rag_judge.py` | the "one focused failure mode" LLM-judge notebook, and RAGAS's `Faithfulness` | `RagEngine.ask()` |
+| `evals/rag_eval.py` | RAGAS's `context_precision`/`context_recall`, and the tutorial's non-LLM `citation_f1` | `RagEngine.ask()` |
+
+**`risk_classifier_eval.py`** runs `evals/data/risk_classifier_golden.csv` (29 rows,
+mostly real fund names from the same live Google 401(k) filing used elsewhere in this
+doc) through `classify_label()` and reports per-class precision/recall/F1. Two rows are
+tagged `known_miss` in the CSV's `source` column and are **kept in deliberately**:
+Wellesley Income Fund (a balanced fund the `fixed_income` pattern catches via "income
+fund", the same pattern that correctly identifies pure bond funds) and Fidelity VIP
+Contrafund (a well-known equity fund whose name contains no asset-class keyword at
+all). A report that scores 100% would mean the golden dataset stopped reflecting the
+classifier's real, documented limitations — run it and it lands around 93% accuracy /
+0.92 macro-F1, with those two rows visibly the misses. Run directly:
+`uv run python -m planpeek.evals.risk_classifier_eval`.
+
+**`rag_eval.py` + `rag_judge.py`** evaluate `RagEngine` answers against
+`evals/data/rag_qa_golden.csv` (question → expected page numbers) using
+`evals/sample_filing.py`, a small **synthetic** filing fixture — authored, not
+downloaded, specifically so the "true" page for every fact is known exactly and the
+harness is fully offline-testable without a live filing or Databricks credentials.
+Bring your own golden CSV against a real filing's `RagEngine` to evaluate that instead;
+the harness itself doesn't know or care that the bundled one is synthetic. Two
+deterministic metrics need no LLM at all:
+
+- **citation accuracy** — do the `[p. N]` pages the model actually wrote in its answer
+  text match the golden dataset's expected pages?
+- **retrieval accuracy** — do the pages the Chroma query retrieved
+  (`RagAnswer.citations`) match the expected pages?
+
+These are scored separately on purpose: retrieval can find the right page while the
+model fails to cite it in prose, or vice versa, and collapsing them into one score
+would hide which stage is actually failing.
+
+**Faithfulness** (`rag_judge.judge_faithfulness`) is the one LLM-dependent piece: a
+judge scoped to exactly one failure mode ("does this answer state anything the cited
+excerpts don't support?"), not a general answer-quality grader — same reasoning as the
+tutorial's "vague utterance" judge: a judge with one job is easier to trust. It's
+optional (`run_eval(..., judge=None)` skips it) and, like `ask_filing` and
+`vul_parser.py`'s extraction quality, its real-model behavior is untested in the
+environment this was built in — only the JSON-parsing and prompt-construction plumbing
+is (`test_rag_judge.py`, via a fake LLM).
+
+Run `uv run python -m planpeek.evals.rag_eval` against the bundled sample filing (needs
+Databricks credentials, see the Configuration reference below).
+
 ## Configuration reference
 
 | Variable | Used by | Required? |
